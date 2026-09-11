@@ -126,6 +126,8 @@ jobs:
         run: ${{ inputs.build-command }}
 
       - name: Govulncheck
+        env:
+          GOTOOLCHAIN: local
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   dependency-review:
