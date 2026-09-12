@@ -43,6 +43,9 @@ jobs:
           IMG="ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}"
           SHA="${GITHUB_SHA::7}"
           buildah build \
+            --build-arg VERSION="${VERSION}" \
+            --build-arg COMMIT="${GITHUB_SHA}" \
+            --build-arg DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             -t "${IMG}:${VERSION}" \
             -t "${IMG}:${SHA}" \
             -t "${IMG}:latest" \
