@@ -1,11 +1,6 @@
 name: release
-# Semver bump + git tag + GitHub release
-# Inputs: runner (default: ubuntu-latest)
-#
-# Optional signed tags: set repo/org secrets GPG_PRIVATE_KEY (armored private
-# key) + GPG_PASSPHRASE. When present, release tags are created as signed,
-# annotated tags (git tag -s). When absent, behavior is unchanged (lightweight
-# tags).
+
+# Semver bump + immutable GitHub App-created tag + GitHub release.
 on:
   workflow_call:
     inputs:
@@ -13,127 +8,94 @@ on:
         required: false
         default: ubuntu-latest
         type: string
+      app-id:
+        description: GitHub App client ID for hellnet-actions
+        required: true
+        type: string
     secrets:
-      GPG_PRIVATE_KEY:
-        required: false
-      GPG_PASSPHRASE:
-        required: false
+      HELLNET_ACTIONS_PRIVATE_KEY:
+        description: GitHub App private key for hellnet-actions
+        required: true
     outputs:
       version:
-        value: ${{ jobs.semver.outputs.version }}
+        value: ${{ jobs.release.outputs.version }}
+
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
+
 permissions:
-  contents: write
+  contents: read
+
 jobs:
-  semver:
+  release:
     runs-on: ${{ inputs.runner }}
     outputs:
       version: ${{ steps.semver.outputs.tag }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Create GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ inputs.app-id }}
+          private-key: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - name: Bump version
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Calculate next version
         id: semver
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          HEAD=$(git rev-parse HEAD)
-          EXISTING_TAG=$(git tag --points-at "$HEAD" 2>/dev/null | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' | head -1 || echo "")
-          if [ -n "$EXISTING_TAG" ]; then
-            echo "tag=$EXISTING_TAG" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          LAST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' | head -1 || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            echo "tag=v1.0.0" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          # Check if last tag was beta
-          if [[ "$LAST_TAG" =~ -beta\.([0-9]+)$ ]]; then
-            BETA_NUM=${BASH_REMATCH[1]}
-            BASE="${LAST_TAG%-beta*}"
-            echo "tag=${BASE}-beta.$((BETA_NUM + 1))" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          IFS='.' read -r M m p <<< "${LAST_TAG#v}"
-          M=${M:-1}; m=${m:-0}; p=${p:-0}
-          git log --format="%s" "$LAST_TAG..HEAD" 2>/dev/null | grep -q "BREAKING CHANGE\|!:" && { M=$((M+1)); m=0; p=0; } \
-            || git log --format="%s" "$LAST_TAG..HEAD" 2>/dev/null | grep -q "^feat" && { m=$((m+1)); p=0; } \
-            || p=$((p+1))
-          echo "tag=v${M}.${m}.${p}" >> $GITHUB_OUTPUT
-      - name: Import GPG key for tag signing
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           set -euo pipefail
-          if [ -z "${GPG_PRIVATE_KEY:-}" ]; then
-            echo "GPG_PRIVATE_KEY not set — skipping signing setup"
+          HEAD=$(git rev-parse HEAD)
+          EXISTING_TAG=$(git tag --points-at "$HEAD" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' | head -1 || true)
+          if [ -n "$EXISTING_TAG" ]; then echo "tag=$EXISTING_TAG" >> "$GITHUB_OUTPUT"; exit 0; fi
+          LAST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' | head -1 || true)
+          if [ -z "$LAST_TAG" ]; then echo 'tag=v1.0.0' >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [[ "$LAST_TAG" =~ -beta\.([0-9]+)$ ]]; then
+            echo "tag=${LAST_TAG%-beta*}-beta.$((BASH_REMATCH[1] + 1))" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
-          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
-          gpgconf --kill gpg-agent 2>/dev/null || true
-          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --import
-          KEY_ID=$(gpg --list-secret-keys --with-colons --keyid-format long 2>/dev/null | awk -F: '/^sec:/{print $5; exit}')
-          UID_LINE=$(gpg --list-secret-keys --with-colons 2>/dev/null | awk -F: '/^uid:/{print $10; exit}')
-          NAME=$(echo "$UID_LINE" | sed 's/<.*//;s/[[:space:]]*$//')
-          EMAIL=$(echo "$UID_LINE" | sed -n 's/.*<\(.*\)>.*/\1/p')
-          git config user.signingkey "$KEY_ID"
-          git config user.name "$NAME"
-          git config user.email "$EMAIL"
-          git config tag.gpgsign true
-          WRAPPER="$RUNNER_TEMP/gpg-wrapper.sh"
-          printf '#!/bin/sh\nexec gpg --batch --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" "$@"\n' > "$WRAPPER"
-          chmod +x "$WRAPPER"
-          git config gpg.program "$WRAPPER"
-      - name: Create tag
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: |
-          TAG="${{ steps.semver.outputs.tag }}"
-          if [ -z "$TAG" ] || [ "$TAG" = "v" ]; then
-            echo "Invalid tag ($TAG) — skipping"
-            exit 0
-          fi
-          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists — skipping"
-            exit 0
-          fi
-          if [ -n "${GPG_PRIVATE_KEY:-}" ]; then
-            git tag -s "$TAG" -m "Release $TAG"
+          IFS='.' read -r major minor patch <<< "${LAST_TAG#v}"
+          if git log --format='%s' "$LAST_TAG..HEAD" | grep -q 'BREAKING CHANGE\|!:'; then
+            major=$((major + 1)); minor=0; patch=0
+          elif git log --format='%s' "$LAST_TAG..HEAD" | grep -q '^feat'; then
+            minor=$((minor + 1)); patch=0
           else
-            git tag "$TAG"
+            patch=$((patch + 1))
           fi
-          git push origin "$TAG"
-      - name: Create release
+          echo "tag=v${major}.${minor}.${patch}" >> "$GITHUB_OUTPUT"
+
+      - name: Create immutable tag through GitHub API
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           TAG: ${{ steps.semver.outputs.tag }}
-          REPO: ${{ github.repository }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
-            echo "Release $TAG already exists — skipping"
-            exit 0
-          fi
-          gh release create "$TAG" \
-            --repo "$REPO" \
-            --title "$TAG" \
-            --generate-notes --latest
-      - name: Update latest tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: |
-          # latest is an intentionally mutable tag — force push is correct
-          if [ -n "${GPG_PRIVATE_KEY:-}" ]; then
-            git tag -sf latest -m "Latest release"
+          set -euo pipefail
+          HEAD=$(git rev-parse HEAD)
+          existing=$(gh api "repos/$REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha' 2>/dev/null || true)
+          if [ -n "$existing" ]; then
+            [ "$existing" = "$HEAD" ] || { echo "Tag $TAG already points to $existing" >&2; exit 1; }
           else
-            git tag -f latest
+            gh api --method POST "repos/$REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$HEAD" >/dev/null
           fi
-          git push origin latest --force
+          verification=$(gh api "repos/$REPOSITORY/commits/$HEAD" --jq '.commit.verification.verified')
+          echo "commit=$HEAD verification.verified=$verification"
+
+      - name: Create release through GitHub App
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.semver.outputs.tag }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — skipping"
+          else
+            gh release create "$TAG" --repo "$REPOSITORY" --title "$TAG" --generate-notes --latest
+          fi

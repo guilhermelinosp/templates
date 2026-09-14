@@ -2,76 +2,84 @@ name: auto-pr
 
 on:
   workflow_call:
+    inputs:
+      app-id:
+        description: GitHub App client ID for hellnet-actions
+        required: true
+        type: string
+    secrets:
+      HELLNET_ACTIONS_PRIVATE_KEY:
+        description: GitHub App private key for hellnet-actions
+        required: true
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
   create-pr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Create GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ inputs.app-id }}
+          private-key: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Create or update PR to main
         id: create-pr
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          BRANCH="${{ github.ref_name }}"
 
-          echo "Branch: $BRANCH"
-          echo "Event: ${{ github.event_name }}"
+          case "$BRANCH" in
+            feat/*|fix/*|ci/*|chore/*|docs/*|refactor/*|build/*|test/*) ;;
+            main)
+              echo "Branch is main — skipping"
+              exit 0
+              ;;
+            *)
+              echo "Unsupported automation branch: $BRANCH"
+              exit 0
+              ;;
+          esac
 
-          # Skip main branch
-          if [ "$BRANCH" = "main" ]; then
-            echo "Branch is main — skipping"
-            echo "pr_number=" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Check if PR already exists
           EXISTING=$(gh pr list --repo "$REPOSITORY" --head "$BRANCH" \
             --state open --json number --jq '.[0].number' 2>/dev/null || true)
           if [ -n "$EXISTING" ]; then
             echo "PR #$EXISTING already exists for $BRANCH — updating"
             gh pr edit "$EXISTING" --repo "$REPOSITORY" \
-              --body "Auto-generated PR from \`$BRANCH\`." || true
-            echo "pr_number=$EXISTING" >> $GITHUB_OUTPUT
+              --body "Auto-generated PR from \`$BRANCH\`."
+            echo "pr_number=$EXISTING" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Get first commit as title (fallback)
-          git fetch origin main 2>/dev/null || true
-          TITLE=$(git log --format="%s" origin/main..HEAD 2>/dev/null | tail -1 || echo "")
-          if [ -z "$TITLE" ]; then
-            TITLE="chore: auto PR from $BRANCH"
-          fi
-
-          # Check if there are new commits
-          COMMITS=$(git log --oneline origin/main..HEAD 2>/dev/null | wc -l)
+          git fetch origin main
+          COMMITS=$(git rev-list --count origin/main..HEAD)
           if [ "$COMMITS" -eq 0 ]; then
             echo "No new commits — skipping"
-            echo "pr_number=" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          # Create PR
-          BODY=$(cat <<-EOF
-          Auto-generated PR from \`$BRANCH\`.
-          EOF
-          )
-          gh pr create --repo "$REPOSITORY" \
+          TITLE=$(git log --format="%s" origin/main..HEAD | tail -1)
+          [ -n "$TITLE" ] || TITLE="chore: auto PR from $BRANCH"
+          PR_URL=$(gh pr create --repo "$REPOSITORY" \
             --base main \
             --head "$BRANCH" \
             --title "$TITLE" \
-            --body "$BODY" > /tmp/pr-url.txt 2>&1
-          cat /tmp/pr-url.txt
-          PR_NUMBER=$(grep -oP '/pull/\K[0-9]+' /tmp/pr-url.txt || echo "")
-          if [ -n "$PR_NUMBER" ]; then
-            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-          fi
+            --body "Auto-generated PR from \`$BRANCH\`." )
+          echo "$PR_URL"
+          echo "pr_number=${PR_URL##*/}" >> "$GITHUB_OUTPUT"

@@ -1,0 +1,48 @@
+name: pr-policy
+
+# Read-only policy checks for PR metadata and workflow changes.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if ! printf '%s\n' "$TITLE" | grep -qE '^(feat|fix|docs|style|refactor|test|chore|ci|perf|build|revert)(\([[:alnum:]_-]+\))?!?: .+'; then
+            echo "PR title must follow Conventional Commits" >&2
+            exit 1
+          fi
+
+      - name: Validate branch name
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          case "$BRANCH" in
+            feat/*|fix/*|ci/*|chore/*|docs/*|refactor/*|build/*|test/*) ;;
+            *) echo "Unsupported branch name: $BRANCH" >&2; exit 1 ;;
+          esac
+
+      - name: Check workflow changes for secret exposure
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only "$BASE" "$HEAD" -- '.github/workflows/**' || true)
+          [ -z "$changed" ] && exit 0
+          if git diff --unified=0 "$BASE" "$HEAD" -- $changed | grep -Eiq '\$\{\{ *secrets\.[A-Z0-9_]+ *\}\}.*(run:|script:)|echo +.*(PRIVATE_KEY|TOKEN|PASSWORD|SECRET)'; then
+            echo "Potential secret exposure in workflow changes" >&2
+            exit 1
+          fi
