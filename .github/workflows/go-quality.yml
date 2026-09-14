@@ -50,7 +50,7 @@ permissions:
   contents: read
 
 jobs:
-  quality:
+  check:
     name: go-quality / check
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 15
@@ -67,8 +67,6 @@ jobs:
           cache: true
 
       - name: Verify module integrity
-        # porcelain (not git diff) because stdlib-only modules legitimately
-        # have no go.sum; git diff would abort on the missing pathspec.
         run: |
           go mod verify
           go mod tidy
@@ -97,6 +95,21 @@ jobs:
           path: coverage.out
           retention-days: 7
           if-no-files-found: ignore
+  lint:
+    name: go-quality / lint
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: ${{ inputs.go-version-file }}
+          cache: true
 
       - name: Use canonical golangci config
         run: >-
@@ -115,7 +128,6 @@ jobs:
       - name: Smoke binary
         if: inputs.smoke-command != ''
         run: ${{ inputs.smoke-command }}
-
   dependency-review:
     # Supply-chain check for changed dependencies. Runs on pull_request
     # events only (requires base/head refs); auto-skips otherwise.
