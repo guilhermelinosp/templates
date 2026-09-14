@@ -1,0 +1,50 @@
+name: branch-rules
+
+on:
+  workflow_call:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      HEAD_REF: ${{ github.head_ref }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validar nomenclatura do branch
+        run: |
+          set -eo pipefail
+          ref="${HEAD_REF}"
+          echo "Branch: ${ref}"
+          [[ -z "${ref}" ]] && exit 0
+          if [[ ! "${ref}" =~ ^(feat|fix|chore|docs|refactor|perf|test|build|ci|style|revert|release|dependabot|renovate|bot)/ ]]; then
+            echo "::error title=Branch naming::branch '${ref}' deve começar com um prefixo do tipo feat/, fix/, chore/, docs/, refactor/, release/, dependabot/, renovate/ etc."
+            exit 1
+          fi
+          if [[ "${ref}" =~ [A-Z_\ ] ]]; then
+            echo "::error title=Branch naming::branch '${ref}' deve estar em minúsculas, sem underscores nem espaços."
+            exit 1
+          fi
+      - name: Validar título do pull request
+        run: |
+          set -eo pipefail
+          title="${PR_TITLE}"
+          if [[ -z "${title}" ]] || (( ${#title} > 100 )); then
+            echo "::error title=PR title::o título do PR deve ter entre 1 e 100 caracteres."
+            exit 1
+          fi
+          echo "PR title OK (${#title} chars)."
+      - name: Compliance — pins imutáveis do control plane
+        run: |
+          set -eo pipefail
+          repo="${{ github.repository }}"
+          sha="${{ github.sha }}"
+          files="$(gh api "repos/${repo}/git/trees/${sha}?recursive=1" --jq '.tree[].path' 2>/dev/null | grep -E '^\.github/workflows/.+\.ya?ml$' || true)"
+          [[ -z "${files}" ]] && echo "Sem workflows locais — OK" && exit 0
+          for f in ${files}; do
+            if gh api "repos/${repo}/contents/${f}?ref=${sha}" --jq '.content' | base64 -d | grep -qE 'uses: +guilhermelinosp/templates/[^@ ]+@(main|latest|master)([ $#]|$)'; then
+              echo "::error file=${f}::referência não imutável a guilhermelinosp/templates (use SHA 40-hex, nunca @main/@latest/@master)."
+              exit 1
+            fi
+          done
+          echo "Todos os pins do control plane são imutáveis — OK."
