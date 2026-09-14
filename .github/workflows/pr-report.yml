@@ -27,8 +27,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           permission-contents: read
           permission-issues: write
-          permission-pull-requests: write
-          permission-checks: write
+          permission-pull-requests: read
 
       - name: Publish one persistent report
         env:
@@ -95,10 +94,4 @@ jobs:
               api(f"/repos/{repo}/issues/comments/{existing['id']}", 'PATCH', {'body': body})
           else:
               api(f'/repos/{repo}/issues/{number}/comments', 'POST', {'body': body})
-          check = {'name': 'hellnet-actions / validation', 'head_sha': sha,
-                   'status': 'completed' if overall != 'RUNNING' else 'in_progress',
-                   'output': {'title': 'hellnet-actions validation', 'summary': body}}
-          if overall != 'RUNNING':
-              check['conclusion'] = 'failure' if overall == 'FAIL' else 'success'
-          api(f'/repos/{repo}/check-runs', 'POST', check)
           PY
