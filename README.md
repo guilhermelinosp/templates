@@ -1,4 +1,4 @@
-# ci-templates
+# templates
 
 > Central App-authenticated CI/CD rules and migration guidance: [CI-CONTROL-PLANE.md](CI-CONTROL-PLANE.md)
 
@@ -11,10 +11,29 @@ All workflows run on **ubuntu-latest** (GitHub-hosted runners).
 ```yaml
 jobs:
   build:
-    uses: guilhermelinosp/ci-templates/.github/workflows/dotnet-build.yml@main
+    uses: guilhermelinosp/templates/.github/workflows/dotnet-build.yml@<full-commit-sha>
 ```
 
-> Pin to a specific tag for production: `@v1` or `@v1.2.3`
+Production consumers pin reusable workflows to a full commit SHA. Tags and `@main`
+are for exploration only.
+
+## Hellnet control plane
+
+These reusable workflows form the central automation plane for repositories that
+opt in explicitly:
+
+| Workflow | Capability | Write token |
+|---|---|---|
+| `auto-pr.yml` | one PR per supported branch, labels, no duplicate PRs | App: contents/issues/pull requests/workflows |
+| `pr-policy.yml` | title, branch, workflow ownership and shell policy | none; read-only |
+| `pr-report.yml` | one persistent Build/Tests/Schema/Shell/Security/CodeQL/Policy report | App: issues/pull requests/checks |
+| `release.yml` | repository semver, immutable bot tag and release notes | App: contents |
+| `maintenance.yml` | pin refresh PRs using Contents API commits | App: contents/issues/pull requests/workflows |
+
+The private key is accepted only by write-capable jobs. Validators do not receive
+it and must run with `contents: read` or empty permissions. Workflow changes are
+required to arrive through a PR authored by `hellnet-actions[bot]`; no workflow
+or release job merges its own PR.
 
 ---
 
@@ -173,15 +192,16 @@ jobs:
 
 | Workflow | Description |
 |---|---|
-| `release.yml` | Semver bump, git tag, GitHub release, mutable `latest` tag |
+| `release.yml` | Semver bump, immutable bot tag, GitHub release and generated notes |
 | `pipeline.yml` | Push-to-main pipeline: release → build → push |
 
 #### Signed release tags
 
-When the repo (or caller) provides secrets `GPG_PRIVATE_KEY` + `GPG_PASSPHRASE`,
-`release.yml` imports the key and creates **signed, annotated** tags
-(`git tag -s`) for both the version tag and `latest`. Without them, behavior is
-unchanged (lightweight, unsigned tags) — signing is opt-in per repo.
+Release versioning is repository semver only. Schema identity remains owned by
+the schema repository (for example `schemas/avro/fast-ride-completed/v1`) and is
+never inferred from the repository release number. Version tags are immutable;
+the workflow fails if a tag already points at another commit and never updates a
+mutable `latest` tag.
 
 - Public key for verification: [`signing-key.asc`](signing-key.asc)
   (`gpg --import signing-key.asc && git verify-tag v1.2.3`)
@@ -215,7 +235,7 @@ unchanged (lightweight, unsigned tags) — signing is opt-in per repo.
 ```yaml
 jobs:
   scan:
-    uses: guilhermelinosp/ci-templates/.github/workflows/trivy.yml@main
+    uses: guilhermelinosp/templates/.github/workflows/trivy.yml@<full-commit-sha>
     with:
       image: ghcr.io/org/app@sha256:abc123
 ```
@@ -225,7 +245,7 @@ jobs:
 ```yaml
 jobs:
   deploy:
-    uses: guilhermelinosp/ci-templates/.github/workflows/deploy.yml@main
+    uses: guilhermelinosp/templates/.github/workflows/deploy.yml@<full-commit-sha>
     with:
       namespace: production
       release-name: my-app
@@ -238,15 +258,15 @@ jobs:
 ```yaml
 jobs:
   lint:
-    uses: guilhermelinosp/ci-templates/.github/workflows/shellcheck.yml@main
+    uses: guilhermelinosp/templates/.github/workflows/shellcheck.yml@<full-commit-sha>
 
   build:
     needs: [lint]
-    uses: guilhermelinosp/ci-templates/.github/workflows/go-build.yml@main
+    uses: guilhermelinosp/templates/.github/workflows/go-build.yml@<full-commit-sha>
 
   scan:
     needs: [build]
-    uses: guilhermelinosp/ci-templates/.github/workflows/gitleaks.yml@main
+    uses: guilhermelinosp/templates/.github/workflows/gitleaks.yml@<full-commit-sha>
 ```
 
 ---
@@ -257,4 +277,6 @@ jobs:
 - **Least privilege** — minimal `permissions:` on every workflow
 - **SARIF everywhere** — security tools output SARIF for GitHub Security tab
 - **Conventional Commits** — semver bump depends on commit messages
-- **Reusable** — all workflows are `workflow_call` for composition
+- **Reusable** — opt-in workflows are `workflow_call` for composition
+- **Safe writes** — bot writes use the `hellnet-actions` installation token; `GITHUB_TOKEN` remains read-only where possible
+- **Immutable history** — maintenance commits are created through the Contents API and checked with `verification.verified == true`
