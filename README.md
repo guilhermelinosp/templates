@@ -1,5 +1,7 @@
 # ci-templates
 
+> Central App-authenticated CI/CD rules and migration guidance: [CI-CONTROL-PLANE.md](CI-CONTROL-PLANE.md)
+
 Reusable GitHub Actions workflows for .NET, Go, containers, Kubernetes, Terraform, AWS, DevSecOps, FinOps, and SRE.
 
 All workflows run on **ubuntu-latest** (GitHub-hosted runners).
