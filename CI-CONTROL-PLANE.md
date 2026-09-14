@@ -16,8 +16,10 @@ Do not use `@main`, release tags, or other floating refs for production workflow
 | --- | --- | --- | --- |
 | `auto-pr.yml` | create or update a PR and push a controlled branch | `hellnet-actions` installation token | `contents: write`, `pull-requests: write` |
 | `labeler.yml` | apply path-based labels | `hellnet-actions` installation token | `pull-requests: write` |
-| `pr-report.yml` | create or update the persistent CI comment | `hellnet-actions` installation token | `issues: write`, `pull-requests: write` |
+| `pr-report.yml` | create or update the persistent CI comment (informational only) | `hellnet-actions` installation token | `issues: write`, `pull-requests: read` |
 | `release.yml` | create an immutable release tag and GitHub Release | `hellnet-actions` installation token | `contents: write` |
+
+`pr-report.yml` is not a validation gate. It reports the status of checks that already ran and never creates an artificial check-run or blocks a pull request.
 
 Each write-capable reusable workflow requires the caller to pass `app-id: ${{ vars.HELLNET_ACTIONS_CLIENT_ID }}` and `secrets: inherit`. The caller repository must contain `HELLNET_ACTIONS_PRIVATE_KEY` and the App must be installed there.
 
