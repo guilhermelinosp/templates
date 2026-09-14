@@ -1,24 +1,31 @@
 name: release
 
+# Semver bump + immutable GitHub App-created tag + GitHub release.
 on:
   workflow_call:
     inputs:
-      app-client-id:
-        required: true
-        type: string
       runner:
         required: false
         default: ubuntu-latest
         type: string
+      app-client-id:
+        description: Compatibility alias for app-id
+        required: false
+        type: string
+      app-id:
+        description: GitHub App client ID for hellnet-actions
+        required: false
+        type: string
     secrets:
       HELLNET_ACTIONS_PRIVATE_KEY:
+        description: GitHub App private key for hellnet-actions
         required: true
     outputs:
       version:
         value: ${{ jobs.release.outputs.version }}
 
 concurrency:
-  group: release-${{ github.repository }}-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -30,66 +37,69 @@ jobs:
     outputs:
       version: ${{ steps.semver.outputs.tag }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-
-      - name: Create installation token
+      - name: Create GitHub App installation token
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          client-id: ${{ inputs.app-client-id }}
+          client-id: ${{ inputs.app-id || inputs.app-client-id }}
           private-key: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
           permission-contents: write
 
-      - name: Calculate repository version
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Calculate next version
         id: semver
         run: |
           set -euo pipefail
-          head="$(git rev-parse HEAD)"
-          existing="$(git tag --points-at "$head" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' | head -1 || true)"
-          if [ -n "$existing" ]; then echo "tag=$existing" >> "$GITHUB_OUTPUT"; exit 0; fi
-          last="$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' | head -1 || true)"
-          if [ -z "$last" ]; then echo 'tag=v1.0.0' >> "$GITHUB_OUTPUT"; exit 0; fi
-          if [[ "$last" =~ -beta\.([0-9]+)$ ]]; then
-            base="${last%-beta*}"
-            echo "tag=${base}-beta.$((BASH_REMATCH[1] + 1))" >> "$GITHUB_OUTPUT"
+          HEAD=$(git rev-parse HEAD)
+          EXISTING_TAG=$(git tag --points-at "$HEAD" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' | head -1 || true)
+          if [ -n "$EXISTING_TAG" ]; then echo "tag=$EXISTING_TAG" >> "$GITHUB_OUTPUT"; exit 0; fi
+          LAST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' | head -1 || true)
+          if [ -z "$LAST_TAG" ]; then echo 'tag=v1.0.0' >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [[ "$LAST_TAG" =~ -beta\.([0-9]+)$ ]]; then
+            echo "tag=${LAST_TAG%-beta*}-beta.$((BASH_REMATCH[1] + 1))" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          IFS='.' read -r major minor patch <<< "${last#v}"
-          if git log --format='%s' "$last..HEAD" | grep -qE 'BREAKING CHANGE|!:'; then
+          IFS='.' read -r major minor patch <<< "${LAST_TAG#v}"
+          if git log --format='%s' "$LAST_TAG..HEAD" | grep -q 'BREAKING CHANGE\|!:'; then
             major=$((major + 1)); minor=0; patch=0
-          elif git log --format='%s' "$last..HEAD" | grep -q '^feat'; then
+          elif git log --format='%s' "$LAST_TAG..HEAD" | grep -q '^feat'; then
             minor=$((minor + 1)); patch=0
           else
             patch=$((patch + 1))
           fi
           echo "tag=v${major}.${minor}.${patch}" >> "$GITHUB_OUTPUT"
 
-      - name: Create immutable bot tag
+      - name: Create immutable tag through GitHub API
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          REPOSITORY: ${{ github.repository }}
           TAG: ${{ steps.semver.outputs.tag }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          current="$(git rev-parse HEAD)"
-          remote="$(gh api "/repos/$REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha' 2>/dev/null || true)"
-          if [ -n "$remote" ]; then
-            [ "$remote" = "$current" ] || { echo "Tag $TAG already points elsewhere" >&2; exit 1; }
-            exit 0
+          HEAD=$(git rev-parse HEAD)
+          existing=$(gh api "repos/$REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha' 2>/dev/null || true)
+          if [ -n "$existing" ]; then
+            [ "$existing" = "$HEAD" ] || { echo "Tag $TAG already points to $existing" >&2; exit 1; }
+          else
+            gh api --method POST "repos/$REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$HEAD" >/dev/null
           fi
-          git tag -a "$TAG" -m "Release $TAG" "$current"
-          git push origin "refs/tags/$TAG"
+          verification=$(gh api "repos/$REPOSITORY/commits/$HEAD" --jq '.commit.verification.verified')
+          echo "commit=$HEAD verification.verified=$verification"
 
-      - name: Create GitHub release as the bot
+      - name: Create release through GitHub App
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          REPOSITORY: ${{ github.repository }}
           TAG: ${{ steps.semver.outputs.tag }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          set -euo pipefail
-          if ! gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
-            gh release create "$TAG" --repo "$REPOSITORY" --title "$TAG" --generate-notes
+          if gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — skipping"
+          else
+            gh release create "$TAG" --repo "$REPOSITORY" --title "$TAG" --generate-notes --latest
           fi

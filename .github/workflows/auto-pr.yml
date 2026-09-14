@@ -4,72 +4,86 @@ on:
   workflow_call:
     inputs:
       app-client-id:
-        required: true
+        description: Compatibility alias for app-id
+        required: false
+        type: string
+      app-id:
+        description: GitHub App client ID for hellnet-actions
+        required: false
         type: string
     secrets:
       HELLNET_ACTIONS_PRIVATE_KEY:
+        description: GitHub App private key for hellnet-actions
         required: true
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 jobs:
   create-pr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-
-      - name: Create installation token
+      - name: Create GitHub App installation token
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          client-id: ${{ inputs.app-client-id }}
+          client-id: ${{ inputs.app-id || inputs.app-client-id }}
           private-key: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
           permission-contents: write
-          permission-issues: write
           permission-pull-requests: write
-          permission-workflows: write
 
-      - name: Create or update one PR per branch
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Create or update PR to main
+        id: create-pr
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REPOSITORY: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+
           case "$BRANCH" in
             feat/*|fix/*|ci/*|chore/*|docs/*|refactor/*|build/*|test/*) ;;
-            main) echo "Main is not an automation branch"; exit 0 ;;
-            *) echo "Branch '$BRANCH' is outside the supported automation policy"; exit 0 ;;
+            main)
+              echo "Branch is main — skipping"
+              exit 0
+              ;;
+            *)
+              echo "Unsupported automation branch: $BRANCH"
+              exit 0
+              ;;
           esac
 
-          existing="$(gh pr list --repo "$REPOSITORY" --head "$BRANCH" --state all \
-            --json number,state,url --jq '.[0]' 2>/dev/null || true)"
-          if [ -n "$existing" ] && [ "$existing" != "null" ]; then
-            number="$(printf '%s' "$existing" | jq -r '.number')"
-            state="$(printf '%s' "$existing" | jq -r '.state')"
-            echo "PR #$number already exists ($state); no duplicate will be created"
-            if [ "$state" = "OPEN" ]; then
-              gh pr edit "$number" --repo "$REPOSITORY" \
-                --body "Managed by hellnet-actions from branch $BRANCH." >/dev/null
-            fi
+          EXISTING=$(gh pr list --repo "$REPOSITORY" --head "$BRANCH" \
+            --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$EXISTING" ]; then
+            echo "PR #$EXISTING already exists for $BRANCH — updating"
+            gh pr edit "$EXISTING" --repo "$REPOSITORY" \
+              --body "Auto-generated PR from \`$BRANCH\`."
+            echo "pr_number=$EXISTING" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          git fetch origin main --quiet
-          commits="$(git rev-list --count origin/main..HEAD)"
-          [ "$commits" -gt 0 ] || { echo 'No commits above main'; exit 0; }
-          title="$(git log -1 --format='%s' origin/main..HEAD)"
-          [ -n "$title" ] || title="chore: automate $BRANCH"
-          body="<!-- hellnet-actions-auto-pr -->
-          Managed by hellnet-actions[bot].
+          git fetch origin main
+          COMMITS=$(git rev-list --count origin/main..HEAD)
+          if [ "$COMMITS" -eq 0 ]; then
+            echo "No new commits — skipping"
+            exit 0
+          fi
 
-          Source branch: $BRANCH
-          This PR is intentionally not auto-merged."
-          url="$(gh pr create --repo "$REPOSITORY" --base main --head "$BRANCH" \
-            --title "$title" --body "$body")"
-          number="${url##*/}"
-          gh pr edit "$number" --repo "$REPOSITORY" --add-label automation,ci >/dev/null 2>&1 || true
+          TITLE=$(git log --format="%s" origin/main..HEAD | tail -1)
+          [ -n "$TITLE" ] || TITLE="chore: auto PR from $BRANCH"
+          PR_URL=$(gh pr create --repo "$REPOSITORY" \
+            --base main \
+            --head "$BRANCH" \
+            --title "$TITLE" \
+            --body "Auto-generated PR from \`$BRANCH\`." )
+          echo "$PR_URL"
+          echo "pr_number=${PR_URL##*/}" >> "$GITHUB_OUTPUT"

@@ -1,11 +1,18 @@
 name: labeler
 
-# Auto-label PRs by changed paths
-# Requires: .github/labeler.yml config
-# Secrets: GITHUB_TOKEN (auto)
-
+# Auto-label PRs by changed paths.
+# The caller must pass the hellnet-actions App credentials.
 on:
   workflow_call:
+    inputs:
+      app-id:
+        description: GitHub App client ID for hellnet-actions
+        required: true
+        type: string
+    secrets:
+      HELLNET_ACTIONS_PRIVATE_KEY:
+        description: GitHub App private key for hellnet-actions
+        required: true
 
 permissions:
   contents: read
@@ -15,7 +22,18 @@ jobs:
   label:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13
+      - name: Create GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          client-id: ${{ inputs.app-id }}
+          private-key: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-pull-requests: write
+          permission-contents: read
+
+      - uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v6
+        with:
+          repo-token: ${{ steps.app-token.outputs.token }}
           sync-labels: true
