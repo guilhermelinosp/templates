@@ -1,0 +1,104 @@
+name: pr-report
+
+on:
+  workflow_call:
+    inputs:
+      app-client-id:
+        required: true
+        type: string
+    secrets:
+      HELLNET_ACTIONS_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create reporter token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ inputs.app-client-id }}
+          private-key: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          permission-contents: read
+          permission-issues: write
+          permission-pull-requests: write
+          permission-checks: write
+
+      - name: Publish one persistent report
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_RUN_JSON: ${{ toJSON(github.event.workflow_run) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.parse
+          from urllib.request import Request, urlopen
+
+          repo = os.environ['REPOSITORY']
+          run = json.loads(os.environ['WORKFLOW_RUN_JSON'])
+          token = os.environ['GH_TOKEN']
+          marker = '<!-- hellnet-actions-report -->'
+
+          def api(path, method='GET', body=None):
+              req = Request('https://api.github.com' + path, method=method, headers={
+                  'Accept': 'application/vnd.github+json',
+                  'Authorization': f'Bearer {token}',
+                  'X-GitHub-Api-Version': '2022-11-28',
+              })
+              if body is not None:
+                  req.data = json.dumps(body).encode()
+                  req.add_header('Content-Type', 'application/json')
+              with urlopen(req, timeout=30) as response:
+                  return json.loads(response.read() or b'{}')
+
+          sha = run['head_sha']
+          prs = api(f'/repos/{repo}/commits/{sha}/pulls')
+          if not prs:
+              raise SystemExit(0)
+          number = prs[0]['number']
+          runs = api(f'/repos/{repo}/actions/runs?head_sha={urllib.parse.quote(sha)}&per_page=100')['workflow_runs']
+          latest = {}
+          for item in runs:
+              latest.setdefault(item.get('name'), item.get('conclusion') or 'pending')
+
+          def status(*names):
+              values = [latest.get(name, 'pending') for name in names]
+              if any(value in {'failure', 'cancelled', 'timed_out', 'action_required'} for value in values):
+                  return 'FAIL'
+              if all(value not in {'pending', 'queued', 'in_progress'} for value in values):
+                  return 'PASS'
+              return 'RUNNING'
+
+          rows = {
+              'Build': 'N/A',
+              'Tests': status('validate-schema-pr', 'pr-check'),
+              'Schema': status('validate-schema-pr'),
+              'Shell': status('validate-schema-pr'),
+              'Security': status('security'),
+              'CodeQL': status('codeql'),
+              'Policy': status('pr-policy', 'pr-check'),
+          }
+          overall = 'FAIL' if 'FAIL' in rows.values() else ('RUNNING' if 'RUNNING' in rows.values() else 'PASS')
+          lines = [marker, '## hellnet-actions', '', '| Gate | Result |', '| --- | --- |']
+          lines += [f'| {name} | {value} |' for name, value in rows.items()]
+          lines += ['', f'| **Overall** | **{overall}** |', '', f'Commit: `{sha[:12]}`']
+          body = '\n'.join(lines) + '\n'
+          comments = api(f'/repos/{repo}/issues/{number}/comments?per_page=100')
+          existing = next((item for item in comments if marker in item.get('body', '')), None)
+          if existing:
+              api(f"/repos/{repo}/issues/comments/{existing['id']}", 'PATCH', {'body': body})
+          else:
+              api(f'/repos/{repo}/issues/{number}/comments', 'POST', {'body': body})
+          check = {'name': 'hellnet-actions / validation', 'head_sha': sha,
+                   'status': 'completed' if overall != 'RUNNING' else 'in_progress',
+                   'output': {'title': 'hellnet-actions validation', 'summary': body}}
+          if overall != 'RUNNING':
+              check['conclusion'] = 'failure' if overall == 'FAIL' else 'success'
+          api(f'/repos/{repo}/check-runs', 'POST', check)
+          PY
