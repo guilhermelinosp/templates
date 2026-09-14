@@ -36,6 +36,7 @@ jobs:
     runs-on: ${{ inputs.runner }}
     outputs:
       version: ${{ steps.semver.outputs.tag }}
+
     steps:
       - name: Create GitHub App installation token
         id: app-token
@@ -47,32 +48,62 @@ jobs:
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Calculate next version
         id: semver
+        shell: bash
         run: |
           set -euo pipefail
+
           HEAD=$(git rev-parse HEAD)
-          EXISTING_TAG=$(git tag --points-at "$HEAD" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' | head -1 || true)
-          if [ -n "$EXISTING_TAG" ]; then echo "tag=$EXISTING_TAG" >> "$GITHUB_OUTPUT"; exit 0; fi
-          LAST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' | head -1 || true)
-          if [ -z "$LAST_TAG" ]; then echo 'tag=v1.0.0' >> "$GITHUB_OUTPUT"; exit 0; fi
+
+          EXISTING_TAG=$(
+            git tag --points-at "$HEAD" |
+              grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' |
+              head -1 ||
+              true
+          )
+
+          if [ -n "$EXISTING_TAG" ]; then
+            echo "tag=$EXISTING_TAG" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          LAST_TAG=$(
+            git tag --sort=-version:refname |
+              grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' |
+              head -1 ||
+              true
+          )
+
+          if [ -z "$LAST_TAG" ]; then
+            echo "tag=v1.0.0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [[ "$LAST_TAG" =~ -beta\.([0-9]+)$ ]]; then
             echo "tag=${LAST_TAG%-beta*}-beta.$((BASH_REMATCH[1] + 1))" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
           IFS='.' read -r major minor patch <<< "${LAST_TAG#v}"
+
           if git log --format='%s' "$LAST_TAG..HEAD" | grep -q 'BREAKING CHANGE\|!:'; then
-            major=$((major + 1)); minor=0; patch=0
+            major=$((major + 1))
+            minor=0
+            patch=0
           elif git log --format='%s' "$LAST_TAG..HEAD" | grep -q '^feat'; then
-            minor=$((minor + 1)); patch=0
+            minor=$((minor + 1))
+            patch=0
           else
             patch=$((patch + 1))
           fi
+
           echo "tag=v${major}.${minor}.${patch}" >> "$GITHUB_OUTPUT"
 
       - name: Create immutable tag through GitHub API
@@ -80,16 +111,47 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           TAG: ${{ steps.semver.outputs.tag }}
           REPOSITORY: ${{ github.repository }}
+        shell: bash
         run: |
           set -euo pipefail
+
           HEAD=$(git rev-parse HEAD)
-          existing=$(gh api "repos/$REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha' 2>/dev/null || true)
-          if [ -n "$existing" ]; then
-            [ "$existing" = "$HEAD" ] || { echo "Tag $TAG already points to $existing" >&2; exit 1; }
+
+          echo "Checking tag $TAG"
+
+          if existing=$(
+            gh api \
+              "repos/$REPOSITORY/git/ref/tags/$TAG" \
+              --jq '.object.sha' \
+              2>/dev/null
+          ); then
+            if [ "$existing" != "$HEAD" ]; then
+              echo "Tag $TAG already points to $existing" >&2
+              echo "Expected HEAD: $HEAD" >&2
+              exit 1
+            fi
+
+            echo "Tag $TAG already points to HEAD — skipping creation"
           else
-            gh api --method POST "repos/$REPOSITORY/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$HEAD" >/dev/null
+            echo "Tag $TAG does not exist"
+            echo "Creating $TAG at $HEAD"
+
+            gh api \
+              --method POST \
+              "repos/$REPOSITORY/git/refs" \
+              -f "ref=refs/tags/$TAG" \
+              -f "sha=$HEAD" \
+              >/dev/null
+
+            echo "Tag $TAG created successfully"
           fi
-          verification=$(gh api "repos/$REPOSITORY/commits/$HEAD" --jq '.commit.verification.verified')
+
+          verification=$(
+            gh api \
+              "repos/$REPOSITORY/commits/$HEAD" \
+              --jq '.commit.verification.verified'
+          )
+
           echo "commit=$HEAD verification.verified=$verification"
 
       - name: Create release through GitHub App
@@ -97,9 +159,22 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           TAG: ${{ steps.semver.outputs.tag }}
           REPOSITORY: ${{ github.repository }}
+        shell: bash
         run: |
-          if gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
+          set -euo pipefail
+
+          if gh release view "$TAG" \
+            --repo "$REPOSITORY" \
+            >/dev/null 2>&1; then
             echo "Release $TAG already exists — skipping"
           else
-            gh release create "$TAG" --repo "$REPOSITORY" --title "$TAG" --generate-notes --latest
+            echo "Creating release $TAG"
+
+            gh release create "$TAG" \
+              --repo "$REPOSITORY" \
+              --title "$TAG" \
+              --generate-notes \
+              --latest
+
+            echo "Release $TAG created successfully"
           fi
