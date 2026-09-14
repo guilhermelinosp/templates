@@ -1,81 +1,174 @@
 name: pipeline
 
-# ci-templates' own release pipeline. NOTE: this repository cannot import its
-# own reusable workflows (GitHub rejects self-referencing `uses:`), so the
-# steps are declared locally — they mirror release.yml semantics.
+# templates' own release pipeline.
+# This repository cannot call its own reusable workflows, so release
+# semantics are implemented locally.
+#
+# Every push to main creates the next SemVer tag and GitHub Release
+# using the hellnet-actions GitHub App.
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
+concurrency:
+  group: templates-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
-  semver:
+  release:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+
+    outputs:
+      version: ${{ steps.semver.outputs.tag }}
+
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Create GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.HELLNET_ACTIONS_CLIENT_ID }}
+          private-key: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
 
-      - name: Bump version and tag
+      - name: Calculate next version
         id: semver
-        env:
-          GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
           set -euo pipefail
+
           HEAD=$(git rev-parse HEAD)
           SEMVER='^v[0-9]+\.[0-9]+\.[0-9]+$'
-          BETA='^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$'
-          EXISTING=$(git tag --points-at "$HEAD" \
-            | grep -E "$SEMVER|$BETA" | head -1 || true)
-          if [ -n "$EXISTING" ]; then
-            echo "tag=$EXISTING" >> "$GITHUB_OUTPUT"
+
+          EXISTING_TAG=$(
+            git tag --points-at "$HEAD" |
+              grep -E "$SEMVER" |
+              head -1 ||
+              true
+          )
+
+          if [ -n "$EXISTING_TAG" ]; then
+            echo "tag=$EXISTING_TAG" >> "$GITHUB_OUTPUT"
+            echo "HEAD already tagged as $EXISTING_TAG"
             exit 0
           fi
-          LAST=$(git tag --sort=-version:refname \
-            | grep -E "$SEMVER" | head -1 || true)
-          if [ -z "$LAST" ]; then LAST=v1.0.0; fi
-          IFS=. read -r MAJOR MINOR PATCH <<< "${LAST#v}"
-          SUBJECTS=$(git log --format="%s" "$LAST..HEAD")
-          if echo "$SUBJECTS" | grep -q "BREAKING CHANGE\|!:"; then
-            MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0
-          elif echo "$SUBJECTS" | grep -q "^feat"; then
-            MINOR=$((MINOR+1)); PATCH=0
-          else
-            PATCH=$((PATCH+1))
+
+          LAST_TAG=$(
+            git tag --sort=-version:refname |
+              grep -E "$SEMVER" |
+              head -1 ||
+              true
+          )
+
+          if [ -z "$LAST_TAG" ]; then
+            echo "tag=v1.0.0" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          TAG="v${MAJOR}.${MINOR}.${PATCH}"
-          git config user.name "github-actions[bot]"
-          BOT="41898282+github-actions[bot]@users.noreply.github.com"
-          git config user.email "$BOT"
-          git tag "$TAG" && git push origin "$TAG"
+
+          echo "Last release: $LAST_TAG"
+
+          IFS='.' read -r major minor patch <<< "${LAST_TAG#v}"
+
+          if git log --format='%s%n%b' "$LAST_TAG..HEAD" |
+            grep -q 'BREAKING CHANGE\|!:'; then
+
+            major=$((major + 1))
+            minor=0
+            patch=0
+
+          elif git log --format='%s' "$LAST_TAG..HEAD" |
+            grep -q '^feat'; then
+
+            minor=$((minor + 1))
+            patch=0
+
+          else
+            patch=$((patch + 1))
+          fi
+
+          TAG="v${major}.${minor}.${patch}"
+
+          echo "Next release: $TAG"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create immutable tag through GitHub API
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.semver.outputs.tag }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          HEAD=$(git rev-parse HEAD)
+
+          echo "Checking tag $TAG"
+
+          if existing=$(
+            gh api \
+              "repos/$REPOSITORY/git/ref/tags/$TAG" \
+              --jq '.object.sha' \
+              2>/dev/null
+          ); then
+
+            if [ "$existing" != "$HEAD" ]; then
+              echo "Tag $TAG already points to $existing" >&2
+              echo "Expected HEAD: $HEAD" >&2
+              exit 1
+            fi
+
+            echo "Tag $TAG already points to HEAD — skipping creation"
+
+          else
+            echo "Creating tag $TAG at $HEAD"
+
+            gh api \
+              --method POST \
+              "repos/$REPOSITORY/git/refs" \
+              -f "ref=refs/tags/$TAG" \
+              -f "sha=$HEAD" \
+              >/dev/null
+
+            echo "Tag $TAG created successfully"
+          fi
 
       - name: Create GitHub Release
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           TAG: ${{ steps.semver.outputs.tag }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
         run: |
-          if gh release view "$TAG" > /dev/null 2>&1; then exit 0; fi
-          gh release create "$TAG" --title "$TAG" \
-            --generate-notes --latest
+          set -euo pipefail
 
-  build-and-test:
-    needs: [semver]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+          if gh release view "$TAG" \
+            --repo "$REPOSITORY" \
+            >/dev/null 2>&1; then
 
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-        with:
-          go-version-file: go.mod
-          cache: true
+            echo "Release $TAG already exists — skipping"
 
-      - name: Build
-        run: go build ./...
+          else
+            echo "Creating release $TAG"
 
-      - name: Test
-        run: go test -count=1 ./...
+            gh release create "$TAG" \
+              --repo "$REPOSITORY" \
+              --title "$TAG" \
+              --generate-notes \
+              --latest
+
+            echo "Release $TAG created successfully"
+          fi
