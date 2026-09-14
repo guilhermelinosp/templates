@@ -25,13 +25,17 @@ jobs:
           set -euo pipefail
           printf '%s' "$PR_TITLE" | grep -qE '^(feat|fix|docs|style|refactor|test|chore|ci|perf|build|revert)(\([a-zA-Z0-9_.-]+\))?: .+' \
             || { echo 'Invalid PR title; use Conventional Commits'; exit 1; }
-          printf '%s' "$PR_BRANCH" | grep -qE '^(feat|fix|ci|chore|docs|refactor|build|test)/[^/]+$' \
+          printf '%s' "$PR_BRANCH" | grep -qE '^(feat|fix|ci|chore|docs|refactor|build|test|bot)/[^/]+$' \
             || { echo "Unsupported branch name: $PR_BRANCH"; exit 1; }
 
           files="$(gh api --paginate "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" --jq '.[].filename')"
           if printf '%s\n' "$files" | grep -qE '^\.github/workflows/'; then
             [ "$PR_AUTHOR" = 'hellnet-actions[bot]' ] \
               || { echo 'Workflow changes must be proposed by hellnet-actions[bot]'; exit 1; }
+          fi
+          if printf '%s' "$PR_BRANCH" | grep -qE '^bot/' && [ "$PR_AUTHOR" != 'hellnet-actions[bot]' ]; then
+            echo 'bot/* branches are reserved for hellnet-actions[bot]'
+            exit 1
           fi
 
       - name: Run shell syntax checks when applicable
