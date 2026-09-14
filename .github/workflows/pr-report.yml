@@ -1,0 +1,112 @@
+name: pr-report
+
+# Updates one persistent CI summary comment. This workflow does not checkout PR code.
+on:
+  workflow_call:
+    inputs:
+      app-id:
+        description: GitHub App client ID for hellnet-actions
+        required: true
+        type: string
+      build:
+        required: false
+        default: SKIP
+        type: string
+      tests:
+        required: false
+        default: SKIP
+        type: string
+      schema:
+        required: false
+        default: SKIP
+        type: string
+      shell:
+        required: false
+        default: SKIP
+        type: string
+      security:
+        required: false
+        default: SKIP
+        type: string
+      codeql:
+        required: false
+        default: SKIP
+        type: string
+      policy:
+        required: false
+        default: SKIP
+        type: string
+    secrets:
+      HELLNET_ACTIONS_PRIVATE_KEY:
+        description: GitHub App private key for hellnet-actions
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  report:
+    if: github.event.pull_request.number != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ inputs.app-id }}
+          private-key: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-pull-requests: write
+          permission-issues: write
+
+      - name: Update persistent report comment
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BUILD: ${{ inputs.build }}
+          TESTS: ${{ inputs.tests }}
+          SCHEMA: ${{ inputs.schema }}
+          SHELL: ${{ inputs.shell }}
+          SECURITY: ${{ inputs.security }}
+          CODEQL: ${{ inputs.codeql }}
+          POLICY: ${{ inputs.policy }}
+        run: |
+          set -euo pipefail
+          status() {
+            case "$1" in
+              success|PASS|pass) echo PASS ;;
+              skipped|SKIP|skip) echo SKIP ;;
+              *) echo FAIL ;;
+            esac
+          }
+          overall=PASS
+          for value in "$BUILD" "$TESTS" "$SCHEMA" "$SHELL" "$SECURITY" "$CODEQL" "$POLICY"; do
+            [ "$(status "$value")" = FAIL ] && overall=FAIL
+          done
+          body=$(cat <<EOF
+          <!-- hellnet-actions-report -->
+          ## hellnet-actions CI
+
+          | Check | Status |
+          | --- | --- |
+          | Build | $(status "$BUILD") |
+          | Tests | $(status "$TESTS") |
+          | Schema | $(status "$SCHEMA") |
+          | Shell | $(status "$SHELL") |
+          | Security | $(status "$SECURITY") |
+          | CodeQL | $(status "$CODEQL") |
+          | Policy | $(status "$POLICY") |
+
+          Overall: **$overall**
+          EOF
+          )
+          comment_id=$(gh api --paginate "repos/$REPOSITORY/issues/$PR_NUMBER/comments" \
+            --jq '.[] | select(.body | contains("<!-- hellnet-actions-report -->")) | .id' | head -1 || true)
+          if [ -n "$comment_id" ]; then
+            gh api --method PATCH "repos/$REPOSITORY/issues/comments/$comment_id" -f body="$body" >/dev/null
+          else
+            gh api --method POST "repos/$REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
+          fi
