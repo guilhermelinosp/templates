@@ -25,7 +25,7 @@ jobs:
           set -euo pipefail
           printf '%s' "$PR_TITLE" | grep -qE '^(feat|fix|docs|style|refactor|test|chore|ci|perf|build|revert)(\([a-zA-Z0-9_.-]+\))?: .+' \
             || { echo 'Invalid PR title; use Conventional Commits'; exit 1; }
-          printf '%s' "$PR_BRANCH" | grep -qE '^(feat|fix|ci|chore|docs|refactor|build|test|bot)/[^/]+$' \
+          printf '%s' "$PR_BRANCH" | grep -qE '^(feat|fix|ci|chore|docs|refactor|build|test|bot|schema)/[^/]+$' \
             || { echo "Unsupported branch name: $PR_BRANCH"; exit 1; }
 
           files="$(gh api --paginate "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" --jq '.[].filename')"
