@@ -6,6 +6,11 @@ on:
       app-client-id:
         required: true
         type: string
+      repository:
+        description: "Repository to scope the reporter token to"
+        required: false
+        default: ""
+        type: string
     secrets:
       HELLNET_ACTIONS_PRIVATE_KEY:
         required: true
@@ -26,6 +31,7 @@ jobs:
           client-id: ${{ inputs.app-client-id }}
           private-key: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: ${{ inputs.repository }}
           permission-contents: read
           permission-actions: read
           permission-issues: write
