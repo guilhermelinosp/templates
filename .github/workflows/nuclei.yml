@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Nuclei scan
-        uses: projectdiscovery/nuclei-action@a4ae23f2522c29f17a696be94fea5f394ac6843f
+        uses: projectdiscovery/nuclei-action@cc153d0541e1adf8a42bbe31c0a4fb2376147538
         with:
           target: ${{ inputs.target-url }}
           severity: ${{ inputs.severity }}
