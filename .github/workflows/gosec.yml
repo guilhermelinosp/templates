@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Run gosec
-        uses: securego/gosec@9e75c0576c9878035d4221392108d458abe10fc3
+        uses: securego/gosec@deb54465fea23d19a77f037e11e6589021f8501d
         with:
           args: >
             -severity ${{ inputs.severity }}
