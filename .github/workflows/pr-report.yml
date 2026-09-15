@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   report:
@@ -26,6 +27,7 @@ jobs:
           private-key: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           permission-contents: read
+          permission-actions: read
           permission-issues: write
           permission-pull-requests: read
 
