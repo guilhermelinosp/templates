@@ -44,7 +44,7 @@ jobs:
 
       - name: Run misspell
         if: ${{ inputs.misspell }}
-        uses: reviewdog/action-misspell@ba7ac4030fa6812f8c8b2d4e516af8bc99553c32
+        uses: reviewdog/action-misspell@7cea3d501cb3834c688e08c89ed77b71764d1784
         with:
           reporter: github-pr-review
           level: ${{ inputs.level }}
