@@ -1,19 +1,19 @@
 output: false
 
 pre-commit:
-  parallel: true
+  parallel: false
   commands:
     fmt:
       glob: "*.go"
-      run: go fmt ./...
+      run: if [ -f go.mod ]; then go fmt ./...; fi
     vet:
       glob: "*.go"
-      run: go vet ./...
+      run: if [ -f go.mod ]; then go vet ./...; fi
     tidy:
-      run: go mod tidy && git diff --exit-code go.mod $([ -f go.sum ] && echo go.sum)
+      run: if [ -f go.mod ]; then go mod tidy && git diff --exit-code -- go.mod go.sum; fi
     lint:
       run: |
-        if command -v golangci-lint >/dev/null 2>&1; then
+        if [ -f go.mod ] && command -v golangci-lint >/dev/null 2>&1; then
           golangci-lint run
         else
           echo "golangci-lint not installed; skipping"
@@ -29,8 +29,10 @@ pre-commit:
 
 pre-push:
   commands:
+    tidy:
+      run: if [ -f go.mod ]; then go mod tidy && git diff --exit-code -- go.mod go.sum; fi
     test:
-      run: go test -count=1 -race ./...
+      run: if [ -f go.mod ]; then go test -count=1 -race ./...; fi
 
 commit-msg:
   commands:
