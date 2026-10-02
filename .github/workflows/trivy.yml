@@ -27,7 +27,7 @@ jobs:
   scan:
     runs-on: ${{ inputs.runner }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@v0.36.0
@@ -40,6 +40,6 @@ jobs:
 
       - name: Upload SARIF
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy.sarif
