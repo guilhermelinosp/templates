@@ -31,13 +31,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
         with:
           role-to-assume: ${{ inputs.role-to-assume }}
           aws-region: ${{ inputs.aws-region }}
 
       - name: Prowler scan
-        uses: prowler-cloud/prowler@5.41.0
+        uses: prowler-cloud/prowler@5.43.0
         with:
           args: >
             -M sarif
@@ -48,6 +48,6 @@ jobs:
 
       - name: Upload SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2
         with:
           sarif_file: prowler-report.sarif
