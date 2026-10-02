@@ -1,10 +1,14 @@
 name: latest
 
 # Mantem a tag `latest` no ultimo commit da main: os repositorios chamam os workflows
-# reutilizaveis deste repositorio em `@latest`.
+# reutilizaveis deste repositorio em `@latest`. Roda a cada merge na main e, como
+# rede de seguranca, de 30 em 30 minutos (cobre push perdido e merges em sequencia).
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,11 +21,21 @@ jobs:
   move-tag:
     runs-on: ubuntu-latest
     steps:
-      - name: Point the latest tag at this commit
+      - name: Point the latest tag at the head of main
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/latest" -f sha="${GITHUB_SHA}" -F force=true \
-            || gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" -f ref=refs/tags/latest -f sha="${GITHUB_SHA}"
-          echo "latest -> ${GITHUB_SHA}"
+          repo="${GITHUB_REPOSITORY}"
+          head="$(gh api "repos/${repo}/commits/main" --jq .sha)"
+          current="$(gh api "repos/${repo}/git/ref/tags/latest" --jq .object.sha 2>/dev/null || true)"
+          if [ "${current}" = "${head}" ]; then
+            echo "latest already at ${head}"
+            exit 0
+          fi
+          if [ -n "${current}" ]; then
+            gh api -X PATCH "repos/${repo}/git/refs/tags/latest" -f sha="${head}" -F force=true
+          else
+            gh api -X POST "repos/${repo}/git/refs" -f ref=refs/tags/latest -f sha="${head}"
+          fi
+          echo "latest ${current:-none} -> ${head}"
