@@ -1,0 +1,176 @@
+name: flutter-quality
+
+# Gate de qualidade dos apps Flutter: formato, analise, testes com cobertura minima, dependency-review e
+# build do app iOS (simulador, sem assinatura). Equivalente ao go-quality.yml para os repositorios Flutter.
+on:
+  workflow_call:
+    inputs:
+      flutter-version:
+        description: "Versao do Flutter, por exemplo 3.47.x; vazio usa o canal de flutter-channel."
+        required: false
+        default: ""
+        type: string
+      flutter-channel:
+        required: false
+        default: stable
+        type: string
+      coverage-threshold:
+        description: "Cobertura minima de linhas, em porcentagem; 0 desliga a verificacao."
+        required: false
+        default: 80
+        type: number
+      analyze-args:
+        required: false
+        default: --fatal-infos
+        type: string
+      build-ios:
+        description: Compila o app para o simulador iOS em um runner macOS.
+        required: false
+        default: true
+        type: boolean
+      runner:
+        required: false
+        default: ubuntu-latest
+        type: string
+      macos-runner:
+        required: false
+        default: macos-latest
+        type: string
+    secrets:
+      CODECOV_TOKEN:
+        description: "Token do Codecov (opcional); sem ele a cobertura nao e enviada."
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: flutter-quality / check
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ inputs.flutter-version }}
+          channel: ${{ inputs.flutter-channel }}
+          cache: true
+
+      - name: Install dependencies (lockfile enforced)
+        run: flutter pub get --enforce-lockfile
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze ${{ inputs.analyze-args }}
+
+      - name: Test with coverage
+        run: flutter test --coverage
+
+      - name: Enforce the coverage threshold
+        if: inputs.coverage-threshold > 0
+        env:
+          THRESHOLD: ${{ inputs.coverage-threshold }}
+        run: |
+          python3 - <<'PY'
+          import os, sys
+          found = hit = 0
+          for line in open('coverage/lcov.info'):
+              if line.startswith('LF:'):
+                  found += int(line[3:])
+              elif line.startswith('LH:'):
+                  hit += int(line[3:])
+          if found == 0:
+              print('::error::coverage/lcov.info has no instrumented lines')
+              sys.exit(1)
+          pct = 100 * hit / found
+          threshold = float(os.environ['THRESHOLD'])
+          print(f'line coverage: {hit}/{found} = {pct:.1f}% (minimum {threshold:g}%)')
+          if pct < threshold:
+              print(f'::error::line coverage {pct:.1f}% is below the minimum {threshold:g}%')
+              sys.exit(1)
+          PY
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: coverage/lcov.info
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload coverage to Codecov
+        if: env.CODECOV_TOKEN != ''
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          fail_ci_if_error: false
+
+  build-ios:
+    if: inputs.build-ios
+    name: flutter-quality / build-ios
+    runs-on: ${{ inputs.macos-runner }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ inputs.flutter-version }}
+          channel: ${{ inputs.flutter-channel }}
+          cache: true
+
+      - name: Install dependencies (lockfile enforced)
+        run: flutter pub get --enforce-lockfile
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cocoapods
+            ios/Pods
+          key: pods-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: pods-${{ runner.os }}-
+
+      - name: Build iOS simulator app (no codesign)
+        run: flutter build ios --simulator --no-codesign
+
+      - name: Upload the app bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-simulator-app
+          path: build/ios/iphonesimulator/
+          retention-days: 3
+          if-no-files-found: error
+
+  dependency-review:
+    # Verificacao de cadeia de suprimentos das dependencias alteradas (pub, via pubspec.lock).
+    # So roda em pull_request (precisa dos refs base/head).
+    if: github.event_name == 'pull_request'
+    name: flutter-quality / dependency-review
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@v5.0.0
+        with:
+          fail-on-severity: high
