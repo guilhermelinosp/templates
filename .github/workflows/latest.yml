@@ -1,0 +1,27 @@
+name: latest
+
+# Mantem a tag `latest` no ultimo commit da main: os repositorios chamam os workflows
+# reutilizaveis deste repositorio em `@latest`.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: latest
+  cancel-in-progress: true
+
+jobs:
+  move-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Point the latest tag at this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/latest" -f sha="${GITHUB_SHA}" -F force=true \
+            || gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" -f ref=refs/tags/latest -f sha="${GITHUB_SHA}"
+          echo "latest -> ${GITHUB_SHA}"
