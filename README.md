@@ -206,7 +206,7 @@ mutable `latest` tag.
 - Public key for verification: [`signing-key.asc`](signing-key.asc)
   (`gpg --import signing-key.asc && git verify-tag v1.2.3`)
 - Enrolled repos: hellnet-lib-cache, hellnet-lib-kafka, hellnet-lib-telemetry,
-  hellnet-lib-environments, golang-lib-template
+  golang-lib-template
 
 > ⚠️ The account is personal (no org-level secrets), so each repo carries its
 > own copy of the secret. Use
