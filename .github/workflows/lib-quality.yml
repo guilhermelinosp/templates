@@ -15,7 +15,7 @@ name: lib-quality
 #     contents: read
 #   jobs:
 #     quality:
-#       uses: guilhermelinosp/templates/.github/workflows/lib-quality.yml@main
+#       uses: guilhermelinosp/templates/.github/workflows/lib-quality.yml@latest
 #
 #   # .github/workflows/pr-check.yml  (pull_request)
 #   on:
@@ -26,7 +26,7 @@ name: lib-quality
 #     pull-requests: write   # needed by the dependency-review job
 #   jobs:
 #     quality:
-#       uses: guilhermelinosp/templates/.github/workflows/lib-quality.yml@main
+#       uses: guilhermelinosp/templates/.github/workflows/lib-quality.yml@latest
 
 on:
   workflow_call:
