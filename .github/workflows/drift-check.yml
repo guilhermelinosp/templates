@@ -20,7 +20,7 @@ jobs:
         run: |
           set -euo pipefail
           canonical="$(curl -fsSL https://raw.githubusercontent.com/guilhermelinosp/ci-templates/main/.golangci.yml)"
-          repos="hellnet-lib-kafka hellnet-lib-cache golang-lib-template golang-api-template golang-worker-template golang-cli-template hellnet-lib-environments hellnet-lib-telemetry"
+          repos="hellnet-lib-kafka hellnet-lib-cache golang-lib-template golang-api-template golang-worker-template golang-cli-template hellnet-lib-telemetry"
           status=0
           for r in $repos; do
             cfg="$(curl -fsSL "https://raw.githubusercontent.com/guilhermelinosp/$r/main/.golangci.yml" 2>/dev/null || true)"
