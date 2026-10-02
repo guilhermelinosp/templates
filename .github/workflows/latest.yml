@@ -1,0 +1,45 @@
+name: latest
+
+# Mantem a tag `latest` no commit do release mais recente (a "Latest release" do GitHub):
+# os repositorios chamam os workflows reutilizaveis deste repositorio em `@latest`.
+# Roda quando um release e publicado e a cada merge na main; de 30 em 30 minutos reconcilia
+# (cobre release atrasado, push perdido e merges em sequencia).
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: latest
+  cancel-in-progress: true
+
+jobs:
+  move-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Point the latest tag at the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY}"
+          release="$(gh api "repos/${repo}/releases/latest" --jq .tag_name)"
+          target="$(gh api "repos/${repo}/commits/${release}" --jq .sha)"
+          current="$(gh api "repos/${repo}/git/ref/tags/latest" --jq .object.sha 2>/dev/null || true)"
+          if [ "${current}" = "${target}" ]; then
+            echo "latest already at ${release} (${target})"
+            exit 0
+          fi
+          if [ -n "${current}" ]; then
+            gh api -X PATCH "repos/${repo}/git/refs/tags/latest" -f sha="${target}" -F force=true
+          else
+            gh api -X POST "repos/${repo}/git/refs" -f ref=refs/tags/latest -f sha="${target}"
+          fi
+          echo "latest ${current:-none} -> ${release} (${target})"

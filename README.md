@@ -11,11 +11,12 @@ All workflows run on **ubuntu-latest** (GitHub-hosted runners).
 ```yaml
 jobs:
   build:
-    uses: guilhermelinosp/templates/.github/workflows/dotnet-build.yml@main
+    uses: guilhermelinosp/templates/.github/workflows/dotnet-build.yml@latest
 ```
 
-Consumers call the reusable workflows at `@main`, and third-party actions are
-referenced by version tag, not by commit SHA.
+Consumers call the reusable workflows at `@latest` (a tag that the `latest` workflow
+keeps on the newest release), and third-party actions are referenced by version tag,
+not by commit SHA.
 
 ## Hellnet control plane
 
@@ -234,7 +235,7 @@ mutable `latest` tag.
 ```yaml
 jobs:
   scan:
-    uses: guilhermelinosp/templates/.github/workflows/trivy.yml@main
+    uses: guilhermelinosp/templates/.github/workflows/trivy.yml@latest
     with:
       image: ghcr.io/org/app@sha256:abc123
 ```
@@ -244,7 +245,7 @@ jobs:
 ```yaml
 jobs:
   deploy:
-    uses: guilhermelinosp/templates/.github/workflows/deploy.yml@main
+    uses: guilhermelinosp/templates/.github/workflows/deploy.yml@latest
     with:
       namespace: production
       release-name: my-app
@@ -257,15 +258,15 @@ jobs:
 ```yaml
 jobs:
   lint:
-    uses: guilhermelinosp/templates/.github/workflows/shellcheck.yml@main
+    uses: guilhermelinosp/templates/.github/workflows/shellcheck.yml@latest
 
   build:
     needs: [lint]
-    uses: guilhermelinosp/templates/.github/workflows/go-build.yml@main
+    uses: guilhermelinosp/templates/.github/workflows/go-build.yml@latest
 
   scan:
     needs: [build]
-    uses: guilhermelinosp/templates/.github/workflows/gitleaks.yml@main
+    uses: guilhermelinosp/templates/.github/workflows/gitleaks.yml@latest
 ```
 
 ---
