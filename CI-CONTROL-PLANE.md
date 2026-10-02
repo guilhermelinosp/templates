@@ -1,14 +1,14 @@
 # Hellnet Actions CI control plane
 
-`guilhermelinosp/templates` is the reusable-workflow control plane for the `guilhermelinosp` repositories. Consumers must pin this repository to a full commit SHA:
+`guilhermelinosp/templates` is the reusable-workflow control plane for the `guilhermelinosp` repositories. Consumers reference this repository by `@main`:
 
 ```yaml
 jobs:
   ci:
-    uses: guilhermelinosp/templates/.github/workflows/go-quality.yml@<FULL_COMMIT_SHA>
+    uses: guilhermelinosp/templates/.github/workflows/go-quality.yml@main
 ```
 
-Do not use `@main`, release tags, or other floating refs for production workflows.
+Actions are referenced by version tag (for example `actions/checkout@v7`), not by commit SHA. A change merged here reaches every consumer immediately, so review changes to this repository as production changes.
 
 ## Write-capable workflows
 
@@ -37,7 +37,7 @@ Never expose `HELLNET_ACTIONS_PRIVATE_KEY` to code from an untrusted pull reques
 
 ## Migration order
 
-1. Merge the control-plane changes and record the resulting commit SHA.
-2. Update one consumer, starting with `hellnet-lib-schema`, to pass the App credentials and pin every reusable workflow to that SHA.
+1. Merge the control-plane changes.
+2. Update one consumer, starting with `hellnet-lib-schema`, to pass the App credentials and call the reusable workflows at `@main`.
 3. Verify the bot PR creator, API commit verification, reporter update, labels, immutable tag, and release attribution.
 4. Migrate the remaining consumers in small pull requests.

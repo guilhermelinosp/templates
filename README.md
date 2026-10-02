@@ -11,11 +11,11 @@ All workflows run on **ubuntu-latest** (GitHub-hosted runners).
 ```yaml
 jobs:
   build:
-    uses: guilhermelinosp/templates/.github/workflows/dotnet-build.yml@<full-commit-sha>
+    uses: guilhermelinosp/templates/.github/workflows/dotnet-build.yml@main
 ```
 
-Production consumers pin reusable workflows to a full commit SHA. Tags and `@main`
-are for exploration only.
+Consumers call the reusable workflows at `@main`, and third-party actions are
+referenced by version tag, not by commit SHA.
 
 ## Hellnet control plane
 
@@ -28,7 +28,6 @@ opt in explicitly:
 | `pr-policy.yml` | title, branch, workflow ownership and shell policy | none; read-only |
 | `pr-report.yml` | one persistent Build/Tests/Schema/Shell/Security/CodeQL/Policy report | App: issues/pull requests/checks |
 | `release.yml` | repository semver, immutable bot tag and release notes | App: contents |
-| `maintenance.yml` | pin refresh PRs using Contents API commits | App: contents/issues/pull requests/workflows |
 
 The private key is accepted only by write-capable jobs. Validators do not receive
 it and must run with `contents: read` or empty permissions. Workflow changes are
@@ -235,7 +234,7 @@ mutable `latest` tag.
 ```yaml
 jobs:
   scan:
-    uses: guilhermelinosp/templates/.github/workflows/trivy.yml@<full-commit-sha>
+    uses: guilhermelinosp/templates/.github/workflows/trivy.yml@main
     with:
       image: ghcr.io/org/app@sha256:abc123
 ```
@@ -245,7 +244,7 @@ jobs:
 ```yaml
 jobs:
   deploy:
-    uses: guilhermelinosp/templates/.github/workflows/deploy.yml@<full-commit-sha>
+    uses: guilhermelinosp/templates/.github/workflows/deploy.yml@main
     with:
       namespace: production
       release-name: my-app
@@ -258,15 +257,15 @@ jobs:
 ```yaml
 jobs:
   lint:
-    uses: guilhermelinosp/templates/.github/workflows/shellcheck.yml@<full-commit-sha>
+    uses: guilhermelinosp/templates/.github/workflows/shellcheck.yml@main
 
   build:
     needs: [lint]
-    uses: guilhermelinosp/templates/.github/workflows/go-build.yml@<full-commit-sha>
+    uses: guilhermelinosp/templates/.github/workflows/go-build.yml@main
 
   scan:
     needs: [build]
-    uses: guilhermelinosp/templates/.github/workflows/gitleaks.yml@<full-commit-sha>
+    uses: guilhermelinosp/templates/.github/workflows/gitleaks.yml@main
 ```
 
 ---
@@ -279,4 +278,3 @@ jobs:
 - **Conventional Commits** — semver bump depends on commit messages
 - **Reusable** — opt-in workflows are `workflow_call` for composition
 - **Safe writes** — bot writes use the `hellnet-actions` installation token; `GITHUB_TOKEN` remains read-only where possible
-- **Immutable history** — maintenance commits are created through the Contents API and checked with `verification.verified == true`
