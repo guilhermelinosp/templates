@@ -73,9 +73,10 @@ jobs:
         # direto no shell permitiria injeção de comandos por quem chama o workflow.
         env:
           ANALYZE_ARGS: ${{ inputs.analyze-args }}
-        # Sem aspas de propósito: a entrada pode ter vários argumentos.
-        # shellcheck disable=SC2086
-        run: flutter analyze $ANALYZE_ARGS
+        run: |
+          # Sem aspas de propósito: a entrada pode ter vários argumentos.
+          # shellcheck disable=SC2086
+          flutter analyze $ANALYZE_ARGS
 
       - name: Test with coverage
         run: flutter test --coverage
