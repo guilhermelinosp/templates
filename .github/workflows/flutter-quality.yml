@@ -69,7 +69,14 @@ jobs:
         run: dart format --output=none --set-exit-if-changed .
 
       - name: Analyze
-        run: flutter analyze ${{ inputs.analyze-args }}
+        # A entrada vai por variável de ambiente: interpolar ${{ inputs.* }}
+        # direto no shell permitiria injeção de comandos por quem chama o workflow.
+        env:
+          ANALYZE_ARGS: ${{ inputs.analyze-args }}
+        run: |
+          # Sem aspas de propósito: a entrada pode ter vários argumentos.
+          # shellcheck disable=SC2086
+          flutter analyze $ANALYZE_ARGS
 
       - name: Test with coverage
         run: flutter test --coverage
