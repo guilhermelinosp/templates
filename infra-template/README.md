@@ -7,13 +7,13 @@ Gere dentro do repositorio do servico:
 curl -fsSL https://raw.githubusercontent.com/guilhermelinosp/templates/latest/scripts/new-infra.sh | bash -s -- <app> [--no-service] [--db] [--tag v1.0.0] [--namespace fast]
 ```
 
-Cria `infra/` plana (sem subpastas: `deployment.yaml`, `service.yaml`, `config.env`, `kustomization.yaml`, `application.yaml`) e, em `.github/workflows/`,
+Cria `infra/` plana (sem subpastas: `application.yaml` com Deployment e Service, e `kustomization.yaml`) e, em `.github/workflows/`,
 os chamadores finos de `argocd.yml` e `infra-validate.yml` (`@latest` deste repositorio).
 Nao sobrescreve nada que ja exista.
 
 ## Ajustes por app (nao vem do gerador)
 
-O gerador usa padroes seguros. Ajuste em `infra/deployment.yaml` o que for especifico:
+O gerador usa padroes seguros. Ajuste em `infra/application.yaml` o que for especifico:
 `strategy` (ex. `Recreate` para consumers singleton), limites de CPU/memoria e `config.env`.
 Se o servico usa banco, `--db` referencia o secret `fast-database` por nome (nao versionado).
 
@@ -26,3 +26,11 @@ Se o servico usa banco, `--db` referencia o secret `fast-database` por nome (nao
 - Workflow `sync-secrets` (manual e semanal): propaga `TS_OAUTH_SECRET` e `ARGOCD_TOKEN` guardados
   neste repositorio para todo repositorio com o topico `hellnet-deploy`. Para rotacionar, atualize
   os secrets aqui e rode o workflow. Requer o GitHub App com permissao de Secrets.
+
+## Configuracao (env) fora do Git
+
+O repositorio e publico, entao a config nao fica em `infra/`. O Deployment le o ConfigMap
+`<app>-config` (envFrom), criado no cluster por `scripts/apply-config.sh <app>` a partir de um
+arquivo local `~/.config/hellnet/<namespace>/<app>.env`. O ArgoCD nao rastreia esse ConfigMap:
+depois de mudar um valor, rode com `--restart`.
+A Application do ArgoCD tambem nao fica no repositorio: `new-infra.sh ... --print-application`.
