@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Gera infrastructure/ plana: application.yml (Deployment + Service), configmap.yml e kustomization.yml.
-# A config (env) e os secrets ficam so no repositorio templates (deploy.yml). A Application do ArgoCD sai com --print-application.
+# A config (env) e os secrets ficam so no repositorio templates (tailscale.yml). A Application do ArgoCD sai com --print-application.
 # Tambem cria o chamador infra-validate em .github/workflows/.
 # Uso: new-infra.sh <app> [--no-service] [--db] [--namespace ns] [--owner org] [--project nome] [--print-application]
 # Variaveis: TEMPLATES_REF (default latest), TEMPLATES_DIR (usa um checkout local em vez de baixar)

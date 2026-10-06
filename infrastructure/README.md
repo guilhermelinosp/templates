@@ -12,10 +12,10 @@ Nao sobrescreve nada que ja exista. O chamador `infra-validate` vai para `.githu
 ## Deploy e secrets: no templates
 
 Os repositorios dos servicos nao guardam secret nem variable. Os de deploy ficam nas configuracoes **deste** repositorio
-(`templates`) e o deploy manual sai de `deploy.yml`:
+(`templates`) e o deploy manual sai de `tailscale.yml`:
 
 ```bash
-gh workflow run deploy.yml -R guilhermelinosp/templates -f app=fast-platform -f action=sync
+gh workflow run tailscale.yml -R guilhermelinosp/templates -f app=fast-platform -f action=sync
 ```
 
 | Onde | O que |
@@ -26,7 +26,7 @@ gh workflow run deploy.yml -R guilhermelinosp/templates -f app=fast-platform -f 
 
 A config (env) de cada servico vive em `infrastructure/configmap.yml` do proprio repositorio e o ArgoCD a aplica
 (so valores nao sensiveis: o repositorio e publico; senhas ficam em Secrets do cluster).
-Nova app: acrescente-a em `options` e no `case` de `deploy.yml`, em `sourceRepos` do `appproject.yml` e em `image-updater.yml`.
+Nova app: nada a editar no `tailscale.yml` nem no `cd.yml` (o nome da app e um parametro). Acrescente so o repositorio em `sourceRepos` do `appproject.yml` e a imagem em `image-updater.yml`.
 
 ## Versao da imagem: sempre a ultima, sem bump
 
@@ -36,13 +36,13 @@ tags que ja existem no registry, entao uma release cuja imagem ainda esta sendo 
 
 - Instalar (uma vez): `kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj-labs/argocd-image-updater/v1.3.0/config/install.yaml`
   e depois `kubectl apply -f infrastructure/image-updater.yml`.
-- Rollback ou pausa: no `ImageUpdater`, `commonUpdateSettings.ignoreTags: "*"` (pausa) e `deploy.yml` com `tag=vX.Y.Z`.
+- Rollback ou pausa: no `ImageUpdater`, `commonUpdateSettings.ignoreTags: "*"` (pausa) e `tailscale.yml` com `tag=vX.Y.Z`.
 - Merges so de `infrastructure/**` nao geram release nem imagem (`paths-ignore` no `pipeline.yml` do servico).
 
 ## Tailscale sem vencimento (identidade federada, OIDC)
 
 Auth key vence em ate 90 dias. A identidade federada nao vence e nao tem secret: o GitHub prova quem e o runner (OIDC).
-O `deploy.yml` e o `tailscale-check.yml` usam o OIDC sozinhos quando as variables `TS_CLIENT_ID` e `TS_AUDIENCE` existem
+O `tailscale.yml` e o `tailscale-check.yml` usam o OIDC sozinhos quando as variables `TS_CLIENT_ID` e `TS_AUDIENCE` existem
 (os dois jobs rodam no environment `production`, entao compartilham o mesmo subject). Passos no console, uma vez:
 
 1. **ACL** (Access controls), acrescente:
@@ -76,10 +76,10 @@ O `pipeline.yml` do servico tem um job `cd` depois de `release` e `image`:
     secrets: inherit
 ```
 
-Ele dispara o `deploy.yml` deste repositorio (hub, com `action=sync` e a `tag` publicada) e espera: o resultado, com o link do
+Ele dispara o `tailscale.yml` deste repositorio (hub, com `action=sync` e a `tag` publicada) e espera: o resultado, com o link do
 run no hub, aparece e falha no Actions do proprio servico. Os secrets do Tailscale e do ArgoCD continuam so aqui; o servico usa o
 GitHub App que ja tem. **Pre-requisito unico:** o App `hellnet-actions` precisa da permissao **Actions: Read and write** e estar
-instalado neste repositorio. O deploy.yml fala com o ArgoCD pela **API REST** (`scripts/argocd-rest.sh`), porque o Gateway nao passa gRPC-web.
+instalado neste repositorio. O tailscale.yml fala com o ArgoCD pela **API REST** (`scripts/argocd-rest.sh`), porque o Gateway nao passa gRPC-web.
 
 ## Aviso de vencimento da auth key
 
@@ -89,7 +89,7 @@ venceu), abre uma issue. Defina a variable `TS_AUTHKEY_EXPIRES` (AAAA-MM-DD) par
 
 ## Modos de autenticacao no Tailscale (ordem de preferencia)
 
-O `deploy.yml` e o `tailscale-check.yml` escolhem sozinhos, pelas variables e secrets existentes:
+O `tailscale.yml` e o `tailscale-check.yml` escolhem sozinhos, pelas variables e secrets existentes:
 
 | Modo | Condicao | Vence? | Secret |
 |---|---|---|---|

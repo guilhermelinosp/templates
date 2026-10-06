@@ -1,23 +1,27 @@
-name: deploy
+name: tailscale
 
 run-name: deploy ${{ inputs.app }} ${{ inputs.tag }}
 
 # Hub de deploy: TODOS os secrets e a config de cada app ficam so neste repositorio.
-# Disparo manual: gh workflow run deploy.yml -R guilhermelinosp/templates -f app=fast-platform -f tag=v1.2.3
+# Disparo manual: gh workflow run tailscale.yml -R guilhermelinosp/templates -f app=<nome-da-application> -f tag=v1.2.3
 # Tailscale: identidade federada (OIDC do GitHub, sem secret e SEM vencimento) quando as variables TS_CLIENT_ID e
 # TS_AUDIENCE existem; senao, auth key (TS_AUTHKEY, vence em ate 90 dias). Ver infrastructure/README.md.
 # Secrets: ARGOCD_TOKEN e, so no modo auth key, TS_AUTHKEY
 # Variables: ARGOCD_SERVER, K8S_API_HOST (e TS_CLIENT_ID, TS_AUDIENCE no modo OIDC)
-# Para incluir uma app: adicione-a em `options` e no `case` do passo Validar entradas.
+# Qualquer app serve: `app` e o nome da Application no ArgoCD (= Deployment e imagem ghcr.io/<owner>/<app>). Nada a editar aqui
+# ao criar uma app nova; quem limita o alcance e o AppProject do ArgoCD (role do token).
 # A config (env) vive em infrastructure/configmap.yml de cada repositorio (o ArgoCD a aplica); a versao da imagem e do Image Updater.
 on:
   workflow_dispatch:
     inputs:
       app:
-        description: Aplicacao
-        type: choice
-        options: [fast-platform, fast-sockets, fast-listeners]
+        description: Nome da Application no ArgoCD (igual ao Deployment e a imagem)
+        type: string
         required: true
+      namespace:
+        description: Namespace do Deployment
+        type: string
+        default: fast
       action:
         description: Acao no ArgoCD
         type: choice
@@ -43,7 +47,7 @@ env:
   APP: ${{ inputs.app }}
   ACTION: ${{ inputs.action }}
   TAG: ${{ inputs.tag }}
-  NAMESPACE: fast
+  NAMESPACE: ${{ inputs.namespace }}
   IMAGE_BASE: ghcr.io/guilhermelinosp
   ARGOCD_SERVER: ${{ vars.ARGOCD_SERVER }}
   GATEWAY_IP: ${{ vars.K8S_API_HOST }}
@@ -63,7 +67,8 @@ jobs:
 
       - name: Validar entradas
         run: |
-          case "$APP" in fast-platform|fast-sockets|fast-listeners) ;; *) echo "::error::app nao permitida: $APP"; exit 1;; esac
+          echo "$APP" | grep -Eq '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$' || { echo "::error::app invalida: $APP"; exit 1; }
+          echo "$NAMESPACE" | grep -Eq '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$' || { echo "::error::namespace invalido: $NAMESPACE"; exit 1; }
           if [ -n "$TAG" ] && ! echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$'; then
             echo "::error::tag invalida: $TAG"; exit 1
           fi
