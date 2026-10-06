@@ -2,8 +2,10 @@ name: deploy
 
 # Hub de deploy: TODOS os secrets e a config de cada app ficam so neste repositorio.
 # Disparo manual: gh workflow run deploy.yml -R guilhermelinosp/templates -f app=fast-platform -f tag=v1.2.3
-# Secrets: TS_AUTHKEY, ARGOCD_TOKEN
-# Variables: ARGOCD_SERVER, K8S_API_HOST
+# Tailscale: identidade federada (OIDC do GitHub, sem secret e SEM vencimento) quando as variables TS_CLIENT_ID e
+# TS_AUDIENCE existem; senao, auth key (TS_AUTHKEY, vence em ate 90 dias). Ver infrastructure/README.md.
+# Secrets: ARGOCD_TOKEN e, so no modo auth key, TS_AUTHKEY
+# Variables: ARGOCD_SERVER, K8S_API_HOST (e TS_CLIENT_ID, TS_AUDIENCE no modo OIDC)
 # Para incluir uma app: adicione-a em `options` e no `case` do passo Validar entradas.
 # A config (env) vive em infrastructure/configmap.yml de cada repositorio (o ArgoCD a aplica); a versao da imagem e do Image Updater.
 on:
@@ -50,6 +52,9 @@ jobs:
     name: Deploy ${{ inputs.app }}
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Validar entradas
         run: |
@@ -59,7 +64,19 @@ jobs:
           fi
           [ -n "$ARGOCD_SERVER" ] && [ -n "$GATEWAY_IP" ] || { echo "::error::configure as variables ARGOCD_SERVER e K8S_API_HOST"; exit 1; }
 
-      - name: Tailscale
+      - name: Tailscale (identidade federada, sem vencimento)
+        if: vars.TS_CLIENT_ID != '' && vars.TS_AUDIENCE != ''
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ vars.TS_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          tags: tag:ci
+          args: --accept-routes
+          use-cache: "true"
+          ping: ${{ vars.K8S_API_HOST }}
+
+      - name: Tailscale (auth key)
+        if: vars.TS_CLIENT_ID == '' || vars.TS_AUDIENCE == ''
         uses: tailscale/github-action@v4
         with:
           authkey: ${{ secrets.TS_AUTHKEY }}
