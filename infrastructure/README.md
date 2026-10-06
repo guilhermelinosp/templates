@@ -52,7 +52,9 @@ O `deploy.yml` e o `tailscale-check.yml` usam o OIDC sozinhos quando as variable
    ```
 2. **Settings, Trust credentials, Credential, OpenID Connect**:
    - Issuer: GitHub (`https://token.actions.githubusercontent.com`)
-   - Subject: `repo:guilhermelinosp/templates:environment:production`
+   - Subject: `repo:guilhermelinosp@121059870/templates@1214325533:environment:production`
+     (o GitHub emite o `sub` com os **IDs** numericos do dono e do repositorio, nao so os nomes; o console do Tailscale mostra
+     o valor recebido na mensagem de erro `Received "..." from issuer`)
    - Escopo `auth_keys` (write), tag `tag:ci`.
 3. Copie o **Client ID** e o **Audience** gerados e cadastre-os como **variables** (nao secrets) no `templates`:
    `gh variable set TS_CLIENT_ID --body <id> -R guilhermelinosp/templates` e `gh variable set TS_AUDIENCE --body <audience> -R guilhermelinosp/templates`.
