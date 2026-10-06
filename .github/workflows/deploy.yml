@@ -1,77 +1,125 @@
 name: deploy
 
-# Helm upgrade via kubeconfig secret
-# Secrets: KUBECONFIG (base64 kubeconfig, via kubeconfig-secret input)
-# Inputs: namespace, release-name, chart-dir (default: .), kubeconfig-secret (default: KUBECONFIG), values-file, image
-
+# Hub de deploy: TODOS os secrets e a config de cada app ficam so neste repositorio.
+# Disparo manual: gh workflow run deploy.yml -R guilhermelinosp/templates -f app=fast-platform -f tag=v1.2.3
+# Secrets: TS_AUTHKEY, ARGOCD_TOKEN, KUBE_TOKEN, KUBE_CA (base64), CONFIG_<APP> (conteudo do env da app)
+# Variables: ARGOCD_SERVER, K8S_API_HOST
+# Para incluir uma app: adicione-a em `options` abaixo, no `case` e no env do passo Config.
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
-      namespace:
+      app:
+        description: Aplicacao
+        type: choice
+        options: [fast-platform, fast-sockets, fast-listeners]
         required: true
+      action:
+        description: Acao no ArgoCD
+        type: choice
+        options: [diff, sync]
+        default: diff
+      tag:
+        description: Tag da imagem (ex. v1.2.3). Vazio = manter a atual.
         type: string
-      release-name:
-        required: true
-        type: string
-      chart-dir:
         required: false
-        default: "."
-        type: string
-      kubeconfig-secret:
-        required: false
-        default: "KUBECONFIG"
-        type: string
-      values-file:
-        required: false
-        default: ""
-        type: string
-      image:
-        required: false
-        default: ""
-        type: string
+      config:
+        description: Aplicar o ConfigMap a partir do secret de config
+        type: boolean
+        default: false
+      restart:
+        description: Reiniciar o Deployment depois do sync
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
+concurrency:
+  group: deploy-${{ inputs.app }}
+  cancel-in-progress: false
+
+env:
+  APP: ${{ inputs.app }}
+  ACTION: ${{ inputs.action }}
+  TAG: ${{ inputs.tag }}
+  NAMESPACE: fast
+  IMAGE_BASE: ghcr.io/guilhermelinosp
+  ARGOCD_SERVER: ${{ vars.ARGOCD_SERVER }}
+  GATEWAY_IP: ${{ vars.K8S_API_HOST }}
+  ARGOCD_VERSION: v3.5.3
+
 jobs:
   deploy:
+    name: Deploy ${{ inputs.app }}
     runs-on: ubuntu-latest
+    environment: production
     steps:
-      - uses: actions/checkout@v7
+      - name: Validar entradas
+        run: |
+          case "$APP" in fast-platform|fast-sockets|fast-listeners) ;; *) echo "::error::app nao permitida: $APP"; exit 1;; esac
+          if [ -n "$TAG" ] && ! echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$'; then
+            echo "::error::tag invalida: $TAG"; exit 1
+          fi
+          [ -n "$ARGOCD_SERVER" ] && [ -n "$GATEWAY_IP" ] || { echo "::error::configure as variables ARGOCD_SERVER e K8S_API_HOST"; exit 1; }
 
-      - name: Install Helm
-        uses: azure/setup-helm@v5
+      - name: Tailscale
+        uses: tailscale/github-action@v4
         with:
-          version: latest
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          args: --accept-routes
+          use-cache: "true"
+          ping: ${{ vars.K8S_API_HOST }}
 
-      - name: Setup kubeconfig
-        run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets[inputs.kubeconfig-secret] }}" | base64 -d > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
+      - name: Resolver o ArgoCD pelo gateway
+        run: echo "$GATEWAY_IP $ARGOCD_SERVER" | sudo tee -a /etc/hosts
 
-      - name: Helm upgrade
+      - name: Config (ConfigMap a partir do secret)
+        if: inputs.config
+        env:
+          KUBE_TOKEN: ${{ secrets.KUBE_TOKEN }}
+          KUBE_CA: ${{ secrets.KUBE_CA }}
+          CONFIG_FAST_PLATFORM: ${{ secrets.CONFIG_FAST_PLATFORM }}
+          CONFIG_FAST_SOCKETS: ${{ secrets.CONFIG_FAST_SOCKETS }}
+          CONFIG_FAST_LISTENERS: ${{ secrets.CONFIG_FAST_LISTENERS }}
         run: |
-          RELEASE="${{ inputs.release-name }}"
-          CHART="${{ inputs.chart-dir }}"
-          NS="${{ inputs.namespace }}"
-          ARGS=""
-          if [ -n "${{ inputs.values-file }}" ]; then
-            ARGS="$ARGS -f ${{ inputs.values-file }}"
+          set -euo pipefail
+          case "$APP" in
+            fast-platform) data="$CONFIG_FAST_PLATFORM" ;;
+            fast-sockets) data="$CONFIG_FAST_SOCKETS" ;;
+            fast-listeners) data="$CONFIG_FAST_LISTENERS" ;;
+          esac
+          [ -n "$data" ] || { echo "::error::secret de config vazio para $APP"; exit 1; }
+          # logs sao publicos: mascara cada valor antes de qualquer saida
+          while IFS= read -r line; do v="${line#*=}"; [ -n "$v" ] && echo "::add-mask::$v"; done <<< "$data"
+          umask 077
+          printf '%s\n' "$data" > "$RUNNER_TEMP/config.env"
+          printf '%s' "$KUBE_CA" | base64 -d > "$RUNNER_TEMP/ca.crt"
+          export KUBECONFIG="$RUNNER_TEMP/kubeconfig"
+          kubectl config set-cluster c --server="https://${GATEWAY_IP}:6443" --certificate-authority="$RUNNER_TEMP/ca.crt" --embed-certs=true >/dev/null
+          kubectl config set-credentials u --token="$KUBE_TOKEN" >/dev/null
+          kubectl config set-context x --cluster=c --user=u --namespace="$NAMESPACE" >/dev/null
+          kubectl config use-context x >/dev/null
+          kubectl create configmap "${APP}-config" --from-env-file="$RUNNER_TEMP/config.env" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+          echo "ConfigMap ${APP}-config aplicado"
+          rm -f "$RUNNER_TEMP/config.env" "$RUNNER_TEMP/ca.crt" "$KUBECONFIG"
+
+      - name: Instalar argocd CLI
+        run: |
+          curl -fsSL -o argocd "https://github.com/argoproj/argo-cd/releases/download/${ARGOCD_VERSION}/argocd-linux-amd64"
+          sudo install -m 0755 argocd /usr/local/bin/argocd
+
+      - name: ArgoCD
+        env:
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+          RESTART: ${{ inputs.restart }}
+        run: |
+          set -euo pipefail
+          image="${IMAGE_BASE}/${APP}"
+          if [ -n "$TAG" ]; then argocd app set "$APP" --kustomize-image "${image}=${image}:${TAG}" --grpc-web; fi
+          case "$ACTION" in
+            diff) argocd app diff "$APP" --grpc-web || [ $? -eq 1 ] ;;
+            sync) argocd app sync "$APP" --grpc-web && argocd app wait "$APP" --health --timeout 300 --grpc-web ;;
+          esac
+          if [ "$RESTART" = true ]; then
+            argocd app actions run "$APP" restart --kind Deployment --resource-name "$APP" --grpc-web
           fi
-          if [ -n "${{ inputs.image }}" ]; then
-            ARGS="$ARGS --set image.repository=${{ inputs.image }}"
-          fi
-          helm upgrade --install "$RELEASE" \
-            "$CHART" \
-            --namespace "$NS" \
-            --create-namespace \
-            --wait \
-            --timeout 5m \
-            $ARGS
-
-      - name: Verify rollout
-        run: |
-          kubectl rollout status deployment/${{ inputs.release-name }} \
-            --namespace ${{ inputs.namespace }} \
-            --timeout 5m

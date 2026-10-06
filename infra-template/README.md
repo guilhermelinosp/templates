@@ -1,28 +1,29 @@
 # infra-template
 
-Estrutura de deploy (Kustomize + ArgoCD) para servicos `hellnet-service`.
-Gere dentro do repositorio do servico:
+Gera `infra/` plana (`application.yaml` com Deployment e Service, e `kustomization.yaml`) para servicos
+`hellnet-service`. Dentro do repositorio do servico:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/guilhermelinosp/templates/latest/scripts/new-infra.sh | bash -s -- <app> [--no-service] [--db] [--tag v1.0.0] [--namespace fast]
+curl -fsSL https://raw.githubusercontent.com/guilhermelinosp/templates/latest/scripts/new-infra.sh | bash -s -- <app> [--no-service] [--db] [--tag v1.0.0] [--namespace fast] [--print-application]
 ```
 
-Cria `infra/` plana (sem subpastas: `deployment.yaml`, `service.yaml`, `config.env`, `kustomization.yaml`, `application.yaml`) e, em `.github/workflows/`,
-os chamadores finos de `argocd.yml` e `infra-validate.yml` (`@latest` deste repositorio).
-Nao sobrescreve nada que ja exista.
+Nao sobrescreve nada que ja exista. O chamador `infra-validate` vai para `.github/workflows/`.
 
-## Ajustes por app (nao vem do gerador)
+## Deploy, secrets e config: tudo no templates
 
-O gerador usa padroes seguros. Ajuste em `infra/deployment.yaml` o que for especifico:
-`strategy` (ex. `Recreate` para consumers singleton), limites de CPU/memoria e `config.env`.
-Se o servico usa banco, `--db` referencia o secret `fast-database` por nome (nao versionado).
+Os repositorios dos servicos nao guardam secret, variable nem config. Tudo fica nas configuracoes
+**deste** repositorio (`templates`) e o deploy sai de `deploy.yml`:
 
-## Credenciais do deploy (automatico)
+```bash
+gh workflow run deploy.yml -R guilhermelinosp/templates -f app=fast-platform -f tag=v1.2.3 -f action=sync -f config=true
+```
 
-- `scripts/bootstrap-repo.sh <owner/repo>`: poe o topico `hellnet-deploy`, define as variables,
-  grava os secrets lidos do **ambiente** (nada em arquivo), cria o environment `production`
-  (revisor + so `main`) e exige aprovacao de colaboradores externos. `DRY_RUN=1` so mostra.
-- `new-infra.sh ... --bootstrap` faz as duas coisas de uma vez.
-- Workflow `sync-secrets` (manual e semanal): propaga `TS_OAUTH_SECRET` e `ARGOCD_TOKEN` guardados
-  neste repositorio para todo repositorio com o topico `hellnet-deploy`. Para rotacionar, atualize
-  os secrets aqui e rode o workflow. Requer o GitHub App com permissao de Secrets.
+| Onde | O que |
+|---|---|
+| Secrets | `TS_AUTHKEY`, `ARGOCD_TOKEN`, `KUBE_TOKEN`, `KUBE_CA`, `CONFIG_<APP>` (conteudo do env da app) |
+| Variables | `ARGOCD_SERVER`, `K8S_API_HOST` |
+| Cluster (uma vez) | `cluster-config-sync.yaml` (SA so de ConfigMap no ns `fast`) e `appproject.yaml` |
+
+Nova app: crie o secret `CONFIG_<APP>`, adicione-a nas `options`, no `case` e no env do passo Config
+de `deploy.yml`, e inclua o repositorio em `sourceRepos` do `appproject.yaml`.
+O ArgoCD nao rastreia o ConfigMap: use `config=true` e `restart=true` ao mudar um valor.

@@ -23,8 +23,9 @@ spec:
     - { group: "", kind: ConfigMap }
   roles:
     - name: ci
-      description: CI do GitHub (get, diff, set de imagem e sync; sem create/delete/override)
+      description: CI do GitHub (get, diff, set de imagem, sync e restart; sem create/delete/override)
       policies:
         - p, proj:fast:ci, applications, get, fast/*, allow
         - p, proj:fast:ci, applications, update, fast/*, allow
         - p, proj:fast:ci, applications, sync, fast/*, allow
+        - p, proj:fast:ci, applications, action/apps/Deployment/restart, fast/*, allow

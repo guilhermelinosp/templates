@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Gera infra/ plana (Kustomize + Application do ArgoCD, sem subpastas) e os workflows chamadores no repositorio atual.
-# Uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org] [--project nome] [--bootstrap]
-# --bootstrap: tambem roda scripts/bootstrap-repo.sh (topico, variables, secrets do ambiente, environment)
+# Gera infra/ plana: application.yaml (Deployment + Service) e kustomization.yaml.
+# A config (env) e os secrets ficam so no repositorio templates (deploy.yml). A Application do ArgoCD sai com --print-application. e os workflows chamadores no repositorio atual.
+# Uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org] [--project nome] [--print-application]
 # Variaveis: TEMPLATES_REF (default latest), TEMPLATES_DIR (usa um checkout local em vez de baixar)
 set -euo pipefail
 
 app="${1:-}"
-[ -n "$app" ] || { echo "uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org] [--project nome] [--bootstrap]" >&2; exit 2; }
+[ -n "$app" ] || { echo "uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org] [--project nome] [--print-application]" >&2; exit 2; }
 shift
 
-bootstrap=0 service=1 db=0 tag="v0.0.0" namespace="fast" owner="guilhermelinosp" project="fast"
+print_app=0 service=1 db=0 tag="v0.0.0" namespace="fast" owner="guilhermelinosp" project="fast"
 while [ $# -gt 0 ]; do
   case "$1" in
     --no-service) service=0 ;;
-    --bootstrap) bootstrap=1 ;;
+    --print-application) print_app=1 ;;
     --db) db=1 ;;
     --tag) tag="${2:?--tag exige valor}"; shift ;;
     --namespace) namespace="${2:?--namespace exige valor}"; shift ;;
@@ -48,22 +48,16 @@ render() { # <origem> <destino>
         -e "s#__NAMESPACE__#${namespace}#g" -e "s#__OWNER__#${owner}#g" -e "s#__PROJECT__#${project}#g" > "$2"
 }
 
-render deployment.yaml infra/deployment.yaml
-if [ "$service" -eq 1 ]; then render service.yaml infra/service.yaml; fi
-render config.env infra/config.env
-render kustomization.yaml infra/kustomization.yaml
 render application.yaml infra/application.yaml
+render kustomization.yaml infra/kustomization.yaml
 
-for wf in argocd infra-validate; do
-  [ ! -e ".github/workflows/${wf}.yml" ] || { echo ".github/workflows/${wf}.yml ja existe; mantido" >&2; continue; }
-  render "caller/${wf}.yml" ".github/workflows/${wf}.yml"
-done
+if [ -e .github/workflows/infra-validate.yml ]; then echo ".github/workflows/infra-validate.yml ja existe; mantido" >&2
+else render caller/infra-validate.yml .github/workflows/infra-validate.yml; fi
 
 echo "ok: infra/ criado para ${app} (namespace ${namespace}, tag ${tag})"
 echo "valide: kubectl kustomize infra"
-
-if [ "$bootstrap" -eq 1 ]; then
-  nwo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
-  if [ -n "${TEMPLATES_DIR:-}" ]; then bash "${TEMPLATES_DIR}/scripts/bootstrap-repo.sh" "$nwo"
-  else curl -fsSL "https://raw.githubusercontent.com/guilhermelinosp/templates/${ref}/scripts/bootstrap-repo.sh" | bash -s -- "$nwo"; fi
+echo "config e deploy: so no repositorio templates (secret CONFIG_<APP> + deploy.yml); nada de secret neste repositorio"
+if [ "$print_app" -eq 1 ]; then
+  echo "--- Application do ArgoCD (kubectl apply -f -)"
+  fetch argocd-application.yaml | sed -e "s#__APP__#${app}#g" -e "s#__NAMESPACE__#${namespace}#g" -e "s#__OWNER__#${owner}#g" -e "s#__PROJECT__#${project}#g"
 fi
