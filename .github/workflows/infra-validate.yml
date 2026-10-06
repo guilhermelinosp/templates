@@ -1,14 +1,14 @@
 name: infra-validate
 
 # Renderiza o Kustomize do overlay e falha se nao compilar.
-# Inputs: path (default infra/overlays/homelab)
+# Inputs: path (default infra)
 
 on:
   workflow_call:
     inputs:
       path:
         required: false
-        default: infra/overlays/homelab
+        default: infra
         type: string
 
 permissions:
