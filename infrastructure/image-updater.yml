@@ -12,6 +12,8 @@ spec:
     method: argocd
   commonUpdateSettings:
     updateStrategy: semver
+    # status.summary.images das Applications vem vazio neste ArgoCD; sem isto o Updater pula todas as imagens.
+    forceUpdate: true
     allowTags: "regexp:^v[0-9]+\\.[0-9]+\\.[0-9]+$"
   applicationRefs:
     - namePattern: fast-platform
