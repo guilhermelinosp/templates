@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gera infra/ (Kustomize + Application do ArgoCD) e os workflows chamadores no repositorio atual.
+# Gera infra/ plana (Kustomize + Application do ArgoCD, sem subpastas) e os workflows chamadores no repositorio atual.
 # Uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org] [--project nome] [--bootstrap]
 # --bootstrap: tambem roda scripts/bootstrap-repo.sh (topico, variables, secrets do ambiente, environment)
 # Variaveis: TEMPLATES_REF (default latest), TEMPLATES_DIR (usa um checkout local em vez de baixar)
@@ -48,12 +48,11 @@ render() { # <origem> <destino>
         -e "s#__NAMESPACE__#${namespace}#g" -e "s#__OWNER__#${owner}#g" -e "s#__PROJECT__#${project}#g" > "$2"
 }
 
-render base/deployment.yaml infra/base/deployment.yaml
-[ "$service" -eq 1 ] && render base/service.yaml infra/base/service.yaml
-render base/kustomization.yaml infra/base/kustomization.yaml
-render base/config.env infra/base/config.env
-render overlays/homelab/kustomization.yaml infra/overlays/homelab/kustomization.yaml
-render argocd/application.yaml infra/argocd/application.yaml
+render deployment.yaml infra/deployment.yaml
+if [ "$service" -eq 1 ]; then render service.yaml infra/service.yaml; fi
+render config.env infra/config.env
+render kustomization.yaml infra/kustomization.yaml
+render application.yaml infra/application.yaml
 
 for wf in argocd infra-validate; do
   [ ! -e ".github/workflows/${wf}.yml" ] || { echo ".github/workflows/${wf}.yml ja existe; mantido" >&2; continue; }
@@ -61,7 +60,7 @@ for wf in argocd infra-validate; do
 done
 
 echo "ok: infra/ criado para ${app} (namespace ${namespace}, tag ${tag})"
-echo "valide: kubectl kustomize infra/overlays/homelab"
+echo "valide: kubectl kustomize infra"
 
 if [ "$bootstrap" -eq 1 ]; then
   nwo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
