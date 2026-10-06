@@ -39,16 +39,24 @@ tags que ja existem no registry, entao uma release cuja imagem ainda esta sendo 
 - Rollback ou pausa: no `ImageUpdater`, `commonUpdateSettings.ignoreTags: "*"` (pausa) e `deploy.yml` com `tag=vX.Y.Z`.
 - Merges so de `infrastructure/**` nao geram release nem imagem (`paths-ignore` no `pipeline.yml` do servico).
 
-## Tailscale sem vencimento (identidade federada)
+## Tailscale sem vencimento (identidade federada, OIDC)
 
 Auth key vence em ate 90 dias. A identidade federada nao vence e nao tem secret: o GitHub prova quem e o runner (OIDC).
-Basta um passo no console, uma vez:
+O `deploy.yml` e o `tailscale-check.yml` usam o OIDC sozinhos quando as variables `TS_CLIENT_ID` e `TS_AUDIENCE` existem
+(os dois jobs rodam no environment `production`, entao compartilham o mesmo subject). Passos no console, uma vez:
 
-1. ACL (Access controls): `"tagOwners": { "tag:github": ["autogroup:admin"] }` e um grant `{ "src": ["tag:github"], "dst": ["192.168.1.2"], "ip": ["tcp:443"] }`.
-2. Settings, Trust credentials, Credential, **OpenID Connect**: emissor GitHub, subject
-   `repo:guilhermelinosp/templates:environment:production`, escopo `auth_keys` (write) com a tag `tag:github`.
-3. Cadastre as variables `TS_CLIENT_ID` e `TS_AUDIENCE` no repositorio `templates`. O `deploy.yml` passa a usar o OIDC sozinho;
-   `TS_AUTHKEY` pode ser apagado.
+1. **ACL** (Access controls), acrescente:
+   ```json
+   "tagOwners": { "tag:ci": ["autogroup:admin"] },
+   "grants": [ { "src": ["tag:ci"], "dst": ["192.168.1.2"], "ip": ["tcp:443"] } ]
+   ```
+2. **Settings, Trust credentials, Credential, OpenID Connect**:
+   - Issuer: GitHub (`https://token.actions.githubusercontent.com`)
+   - Subject: `repo:guilhermelinosp/templates:environment:production`
+   - Escopo `auth_keys` (write), tag `tag:ci`.
+3. Copie o **Client ID** e o **Audience** gerados e cadastre-os como **variables** (nao secrets) no `templates`:
+   `gh variable set TS_CLIENT_ID --body <id> -R guilhermelinosp/templates` e `gh variable set TS_AUDIENCE --body <audience> -R guilhermelinosp/templates`.
+4. Rode o `tailscale-check` (workflow_dispatch). Se passar no modo "identidade federada", apague o secret `TS_AUTHKEY`.
 
 ## CD nos Actions de cada servico
 
