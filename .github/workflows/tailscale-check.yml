@@ -41,7 +41,7 @@ jobs:
         with:
           oauth-client-id: ${{ vars.TS_CLIENT_ID }}
           audience: ${{ vars.TS_AUDIENCE }}
-          tags: tag:ci
+          tags: tag:github
           ping: ${{ vars.K8S_API_HOST }}
 
       - name: Tailscale (auth key)
