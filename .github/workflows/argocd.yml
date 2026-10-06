@@ -62,6 +62,7 @@ permissions:
 
 jobs:
   argocd:
+    name: Operar ArgoCD
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     permissions:
