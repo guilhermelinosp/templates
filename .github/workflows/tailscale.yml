@@ -1,8 +1,10 @@
 name: tailscale
 
-run-name: deploy ${{ inputs.app }} ${{ inputs.tag }}
+run-name: ${{ github.event_name == 'push' && 'acl' || format('deploy {0} {1}', inputs.app, inputs.tag) }}
 
-# Hub de deploy: TODOS os secrets e a config de cada app ficam so neste repositorio.
+# Hub do Tailscale: TODOS os secrets e a config de cada app ficam so neste repositorio. Dois jobs:
+#   deploy: disparo manual (ou pelo cd.yml); entra no tailnet e fala com o ArgoCD.
+#   acl:    push na main em tailscale/**; valida, testa e aplica a ACL (tailscale/policy.hujson). Ver tailscale/README.md.
 # Disparo manual: gh workflow run tailscale.yml -R guilhermelinosp/templates -f app=<nome-da-application> -f tag=v1.2.3
 # Tailscale: identidade federada (OIDC do GitHub, sem secret e SEM vencimento) quando as variables TS_CLIENT_ID e
 # TS_AUDIENCE existem; senao, auth key (TS_AUTHKEY, vence em ate 90 dias). Ver infrastructure/README.md.
@@ -12,6 +14,9 @@ run-name: deploy ${{ inputs.app }} ${{ inputs.tag }}
 # ao criar uma app nova; quem limita o alcance e o AppProject do ArgoCD (role do token).
 # A config (env) vive em infrastructure/configmap.yml de cada repositorio (o ArgoCD a aplica); a versao da imagem e do Image Updater.
 on:
+  push:
+    branches: [main]
+    paths: ['tailscale/**']
   workflow_dispatch:
     inputs:
       app:
@@ -40,7 +45,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ inputs.app }}
+  group: ${{ github.event_name == 'push' && 'tailscale-acl' || format('deploy-{0}', inputs.app) }}
   cancel-in-progress: false
 
 env:
@@ -55,6 +60,7 @@ env:
 jobs:
   deploy:
     name: Deploy ${{ inputs.app }}
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: production
     permissions:
@@ -110,3 +116,24 @@ jobs:
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
           RESTART: ${{ inputs.restart }}
         run: bash scripts/argocd-rest.sh
+
+  acl:
+    name: Aplicar a ACL
+    if: github.event_name == 'push' && vars.TS_CLIENT_ID != '' && vars.TS_AUDIENCE != '' && vars.TS_TAILNET != ''
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validar, testar e aplicar a ACL
+        uses: tailscale/gitops-acl-action@v1
+        with:
+          oauth-client-id: ${{ vars.TS_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          tailnet: ${{ vars.TS_TAILNET }}
+          policy-file: tailscale/policy.hujson
+          action: apply
