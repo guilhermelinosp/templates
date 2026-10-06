@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 # Gera infra/ (Kustomize + Application do ArgoCD) e os workflows chamadores no repositorio atual.
-# Uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org] [--project nome]
+# Uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org] [--project nome] [--bootstrap]
+# --bootstrap: tambem roda scripts/bootstrap-repo.sh (topico, variables, secrets do ambiente, environment)
 # Variaveis: TEMPLATES_REF (default latest), TEMPLATES_DIR (usa um checkout local em vez de baixar)
 set -euo pipefail
 
 app="${1:-}"
-[ -n "$app" ] || { echo "uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org] [--project nome]" >&2; exit 2; }
+[ -n "$app" ] || { echo "uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org] [--project nome] [--bootstrap]" >&2; exit 2; }
 shift
 
-service=1 db=0 tag="v0.0.0" namespace="fast" owner="guilhermelinosp" project="fast"
+bootstrap=0 service=1 db=0 tag="v0.0.0" namespace="fast" owner="guilhermelinosp" project="fast"
 while [ $# -gt 0 ]; do
   case "$1" in
     --no-service) service=0 ;;
+    --bootstrap) bootstrap=1 ;;
     --db) db=1 ;;
     --tag) tag="${2:?--tag exige valor}"; shift ;;
     --namespace) namespace="${2:?--namespace exige valor}"; shift ;;
@@ -60,3 +62,9 @@ done
 
 echo "ok: infra/ criado para ${app} (namespace ${namespace}, tag ${tag})"
 echo "valide: kubectl kustomize infra/overlays/homelab"
+
+if [ "$bootstrap" -eq 1 ]; then
+  nwo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+  if [ -n "${TEMPLATES_DIR:-}" ]; then bash "${TEMPLATES_DIR}/scripts/bootstrap-repo.sh" "$nwo"
+  else curl -fsSL "https://raw.githubusercontent.com/guilhermelinosp/templates/${ref}/scripts/bootstrap-repo.sh" | bash -s -- "$nwo"; fi
+fi
