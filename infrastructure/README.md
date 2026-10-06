@@ -84,3 +84,15 @@ instalado neste repositorio. O deploy.yml fala com o ArgoCD pela **API REST** (`
 O workflow `tailscale-check` roda toda segunda: tenta entrar no tailnet e alcancar o ArgoCD. Se falhar (em geral porque a auth key
 venceu), abre uma issue. Defina a variable `TS_AUTHKEY_EXPIRES` (AAAA-MM-DD) para um aviso 14 dias antes. A identidade federada
 (secao acima) elimina a renovacao.
+
+## Modos de autenticacao no Tailscale (ordem de preferencia)
+
+O `deploy.yml` e o `tailscale-check.yml` escolhem sozinhos, pelas variables e secrets existentes:
+
+| Modo | Condicao | Vence? | Secret |
+|---|---|---|---|
+| Identidade federada (OIDC) | variables `TS_CLIENT_ID` e `TS_AUDIENCE` | nao | nao |
+| OAuth client | variable `TS_CLIENT_ID` e secret `TS_OAUTH_SECRET` (sem `TS_AUDIENCE`) | nao | sim |
+| Auth key | nenhuma das anteriores | em ate 90 dias | `TS_AUTHKEY` |
+
+Os dois primeiros usam a tag `tag:github` (o OAuth client precisa ter `auth_keys` e essa tag permitidos no console).

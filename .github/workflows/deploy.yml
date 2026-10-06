@@ -56,6 +56,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    env:
+      HAS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET != '' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -77,8 +79,18 @@ jobs:
           use-cache: "true"
           ping: ${{ vars.K8S_API_HOST }}
 
+      - name: Tailscale (OAuth client, sem vencimento)
+        if: vars.TS_CLIENT_ID != '' && vars.TS_AUDIENCE == '' && env.HAS_OAUTH_SECRET == 'true'
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ vars.TS_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:github
+          use-cache: "true"
+          ping: ${{ vars.K8S_API_HOST }}
+
       - name: Tailscale (auth key)
-        if: vars.TS_CLIENT_ID == '' || vars.TS_AUDIENCE == ''
+        if: vars.TS_CLIENT_ID == '' || (vars.TS_AUDIENCE == '' && env.HAS_OAUTH_SECRET != 'true')
         uses: tailscale/github-action@v4
         with:
           authkey: ${{ secrets.TS_AUTHKEY }}
