@@ -99,8 +99,8 @@ jobs:
           kubectl config set-credentials u --token="$KUBE_TOKEN" >/dev/null
           kubectl config set-context x --cluster=c --user=u --namespace="$NAMESPACE" >/dev/null
           kubectl config use-context x >/dev/null
-          kubectl create configmap "${APP}-config" --from-env-file="$RUNNER_TEMP/config.env" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-          echo "ConfigMap ${APP}-config aplicado"
+          kubectl create configmap "${APP}" --from-env-file="$RUNNER_TEMP/config.env" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+          echo "ConfigMap ${APP} aplicado"
           rm -f "$RUNNER_TEMP/config.env" "$RUNNER_TEMP/ca.crt" "$KUBECONFIG"
 
       - name: Instalar argocd CLI
