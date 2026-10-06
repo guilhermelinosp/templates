@@ -73,7 +73,7 @@ jobs:
         with:
           oauth-client-id: ${{ vars.TS_CLIENT_ID }}
           audience: ${{ vars.TS_AUDIENCE }}
-          tags: tag:ci
+          tags: tag:github
           use-cache: "true"
           ping: ${{ vars.K8S_API_HOST }}
 
