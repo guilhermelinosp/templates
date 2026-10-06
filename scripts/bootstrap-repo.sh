@@ -2,8 +2,8 @@
 # Prepara um repositorio para o deploy: topico (entra na propagacao automatica), variables,
 # secrets, environment production (revisor + so main) e aprovacao de colaboradores externos.
 # Uso: bootstrap-repo.sh <owner/repo>
-# Entrada por ambiente (nada e gravado em arquivo): TS_OAUTH_SECRET e ARGOCD_TOKEN (opcionais:
-# se vazios, o secret nao e alterado), TS_CLIENT_ID, TS_AUDIENCE, ARGOCD_SERVER, K8S_API_HOST.
+# Entrada por ambiente (nada e gravado em arquivo): TS_AUTHKEY e ARGOCD_TOKEN (opcionais:
+# se vazios, o secret nao e alterado), ARGOCD_SERVER, K8S_API_HOST.
 # DRY_RUN=1 apenas mostra o que faria.
 set -euo pipefail
 
@@ -15,11 +15,11 @@ run() { if [ "${DRY_RUN:-0}" = 1 ]; then echo "[dry-run] $*"; else "$@"; fi; }
 
 run gh repo edit "$repo" --add-topic hellnet-deploy
 
-for v in TS_CLIENT_ID TS_AUDIENCE ARGOCD_SERVER K8S_API_HOST; do
+for v in ARGOCD_SERVER K8S_API_HOST; do
   if [ -n "${!v:-}" ]; then run gh variable set "$v" --body "${!v}" -R "$repo"; fi
 done
 
-for s in TS_OAUTH_SECRET ARGOCD_TOKEN; do
+for s in TS_AUTHKEY ARGOCD_TOKEN; do
   if [ -n "${!s:-}" ]; then
     if [ "${DRY_RUN:-0}" = 1 ]; then echo "[dry-run] gh secret set $s -R $repo (valor oculto)"
     else printf '%s' "${!s}" | gh secret set "$s" -R "$repo"; fi
