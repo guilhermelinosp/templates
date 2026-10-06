@@ -70,3 +70,9 @@ Ele dispara o `deploy.yml` deste repositorio (hub, com `action=sync` e a `tag` p
 run no hub, aparece e falha no Actions do proprio servico. Os secrets do Tailscale e do ArgoCD continuam so aqui; o servico usa o
 GitHub App que ja tem. **Pre-requisito unico:** o App `hellnet-actions` precisa da permissao **Actions: Read and write** e estar
 instalado neste repositorio. O deploy.yml fala com o ArgoCD pela **API REST** (`scripts/argocd-rest.sh`), porque o Gateway nao passa gRPC-web.
+
+## Aviso de vencimento da auth key
+
+O workflow `tailscale-check` roda toda segunda: tenta entrar no tailnet e alcancar o ArgoCD. Se falhar (em geral porque a auth key
+venceu), abre uma issue. Defina a variable `TS_AUTHKEY_EXPIRES` (AAAA-MM-DD) para um aviso 14 dias antes. A identidade federada
+(secao acima) elimina a renovacao.

@@ -1,0 +1,69 @@
+name: tailscale-check
+
+# Toda segunda: confirma que o CD ainda entra no tailnet e alcanca o ArgoCD pelo gateway.
+# A auth key do Tailscale vence em ate 90 dias; se ela vencer (ou a rota quebrar), abre uma issue em vez de o deploy falhar sem aviso.
+# Opcional: variable TS_AUTHKEY_EXPIRES (AAAA-MM-DD) avisa 14 dias antes. O check semanal pega o vencimento mesmo sem ela.
+on:
+  schedule:
+    - cron: "23 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  id-token: write
+
+concurrency:
+  group: tailscale-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Tailscale e gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ARGOCD_SERVER: ${{ vars.ARGOCD_SERVER }}
+      GATEWAY_IP: ${{ vars.K8S_API_HOST }}
+    steps:
+      - name: Aviso de vencimento da auth key
+        env:
+          EXPIRES: ${{ vars.TS_AUTHKEY_EXPIRES }}
+        run: |
+          [ -n "$EXPIRES" ] || { echo "TS_AUTHKEY_EXPIRES nao definida; so o teste semanal avisa"; exit 0; }
+          left=$(( ( $(date -ud "$EXPIRES" +%s) - $(date -u +%s) ) / 86400 ))
+          echo "auth key vence em ${left} dia(s) (${EXPIRES})"
+          [ "$left" -gt 14 ] || echo "::warning::a auth key do Tailscale vence em ${left} dia(s); gere outra e atualize o secret TS_AUTHKEY"
+
+      - name: Tailscale (identidade federada)
+        if: vars.TS_CLIENT_ID != '' && vars.TS_AUDIENCE != ''
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ vars.TS_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          tags: tag:ci
+          ping: ${{ vars.K8S_API_HOST }}
+
+      - name: Tailscale (auth key)
+        if: vars.TS_CLIENT_ID == '' || vars.TS_AUDIENCE == ''
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          ping: ${{ vars.K8S_API_HOST }}
+
+      - name: ArgoCD responde pelo gateway
+        run: |
+          echo "$GATEWAY_IP $ARGOCD_SERVER" | sudo tee -a /etc/hosts >/dev/null
+          curl -fsS --max-time 20 "https://${ARGOCD_SERVER}/api/version" | jq -r '"ArgoCD \(.Version)"'
+
+      - name: Abrir issue se falhou
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Tailscale check falhou: o CD pode estar sem acesso ao cluster"
+          existing="$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')"
+          body="O check semanal nao conseguiu entrar no tailnet ou alcancar o ArgoCD.\n\nCausa mais provavel: a auth key do Tailscale venceu (limite de 90 dias). Gere outra (Reusable, Ephemeral, sem tags) e atualize o secret TS_AUTHKEY, ou configure a identidade federada (infrastructure/README.md) para nunca vencer.\n\nRun: ${RUN_URL}"
+          if [ -n "$existing" ]; then gh issue comment "$existing" -R "$GITHUB_REPOSITORY" --body "$(printf '%b' "$body")"
+          else gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body "$(printf '%b' "$body")"; fi
