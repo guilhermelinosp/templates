@@ -20,8 +20,8 @@ gh workflow run deploy.yml -R guilhermelinosp/templates -f app=fast-platform -f 
 
 | Onde | O que |
 |---|---|
-| Secrets | `TS_AUTHKEY`, `ARGOCD_TOKEN` |
-| Variables | `ARGOCD_SERVER`, `K8S_API_HOST` |
+| Secrets | `ARGOCD_TOKEN` (e `TS_AUTHKEY`, so no modo auth key) |
+| Variables | `ARGOCD_SERVER`, `K8S_API_HOST` (e `TS_CLIENT_ID`, `TS_AUDIENCE` no modo OIDC) |
 | Cluster (uma vez) | `appproject.yml` e `image-updater.yml` |
 
 A config (env) de cada servico vive em `infrastructure/configmap.yml` do proprio repositorio e o ArgoCD a aplica
@@ -38,3 +38,14 @@ tags que ja existem no registry, entao uma release cuja imagem ainda esta sendo 
   e depois `kubectl apply -f infrastructure/image-updater.yml`.
 - Rollback ou pausa: no `ImageUpdater`, `commonUpdateSettings.ignoreTags: "*"` (pausa) e `deploy.yml` com `tag=vX.Y.Z`.
 - Merges so de `infrastructure/**` nao geram release nem imagem (`paths-ignore` no `pipeline.yml` do servico).
+
+## Tailscale sem vencimento (identidade federada)
+
+Auth key vence em ate 90 dias. A identidade federada nao vence e nao tem secret: o GitHub prova quem e o runner (OIDC).
+Basta um passo no console, uma vez:
+
+1. ACL (Access controls): `"tagOwners": { "tag:ci": ["autogroup:admin"] }` e um grant `{ "src": ["tag:ci"], "dst": ["192.168.1.2"], "ip": ["tcp:443"] }`.
+2. Settings, Trust credentials, Credential, **OpenID Connect**: emissor GitHub, subject
+   `repo:guilhermelinosp/templates:environment:production`, escopo `auth_keys` (write) com a tag `tag:ci`.
+3. Cadastre as variables `TS_CLIENT_ID` e `TS_AUDIENCE` no repositorio `templates`. O `deploy.yml` passa a usar o OIDC sozinho;
+   `TS_AUTHKEY` pode ser apagado.
