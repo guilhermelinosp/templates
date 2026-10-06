@@ -1,6 +1,6 @@
 # infrastructure
 
-Gera `infra/` plana (`application.yaml` com Deployment e Service, e `kustomization.yaml`) para servicos
+Gera `infrastructure/` plana (`application.yaml` com Deployment e Service, e `kustomization.yaml`) para servicos
 `hellnet-service`. Dentro do repositorio do servico:
 
 ```bash
