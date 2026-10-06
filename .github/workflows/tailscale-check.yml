@@ -21,7 +21,7 @@ jobs:
   check:
     name: Tailscale e gateway
     runs-on: ubuntu-latest
-    # mesmo subject OIDC do deploy.yml (repo:<owner>/templates:environment:production): uma credencial exata cobre os dois
+    # mesmo subject OIDC do tailscale.yml (repo:<owner>/templates:environment:production): uma credencial exata cobre os dois
     environment: production
     timeout-minutes: 10
     env:

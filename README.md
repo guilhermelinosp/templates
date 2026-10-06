@@ -93,7 +93,7 @@ or release job merges its own PR.
 | `helm-publish.yml` | Package and publish Helm charts to OCI registry |
 | `helm-docs.yml` | Auto-generate Helm chart README from values.yaml |
 | `kustomize-validate.yml` | Kustomize build + kubeconform validation |
-| `deploy.yml` | Helm upgrade via kubeconfig secret + rollout verification |
+| `cd.yml` | CD de qualquer app: dispara o hub `tailscale.yml` (Tailscale por OIDC + ArgoCD REST) e espera o rollout |
 | `conftest.yml` | OPA policy-as-code for Kubernetes configs |
 | `kube-bench.yml` | CIS Kubernetes benchmark |
 | `popeye.yml` | K8s cluster sanitizer |
@@ -245,12 +245,12 @@ jobs:
 ```yaml
 jobs:
   deploy:
-    uses: guilhermelinosp/templates/.github/workflows/deploy.yml@latest
+    uses: guilhermelinosp/templates/.github/workflows/cd.yml@latest
     with:
-      namespace: production
-      release-name: my-app
-    secrets:
-      KUBECONFIG: ${{ secrets.KUBECONFIG }}
+      app: my-app
+      version: ${{ needs.release.outputs.version }}
+      app-client-id: ${{ vars.HELLNET_ACTIONS_CLIENT_ID }}
+    secrets: inherit
 ```
 
 ### Chaining workflows

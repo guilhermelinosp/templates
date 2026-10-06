@@ -1,7 +1,7 @@
 name: cd
 
 # CD dos servicos: chamado pelo pipeline de cada repositorio DEPOIS de a imagem ser publicada.
-# Dispara o deploy.yml deste repositorio (hub, onde ficam o Tailscale e o token do ArgoCD) e espera o resultado,
+# Dispara o tailscale.yml deste repositorio (hub, onde ficam o Tailscale e o token do ArgoCD) e espera o resultado,
 # entao a implantacao aparece e falha no Actions do proprio servico. Nenhum secret novo nos servicos: so o do GitHub App.
 # Requer o GitHub App (hellnet-actions) instalado no templates com a permissao Actions: Read and write.
 on:
@@ -15,6 +15,11 @@ on:
         description: Tag da imagem publicada (ex. v1.2.3)
         required: true
         type: string
+      namespace:
+        description: Namespace do Deployment no cluster
+        required: false
+        type: string
+        default: fast
       app-client-id:
         description: Client ID do GitHub App hellnet-actions
         required: true
@@ -54,17 +59,18 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           HUB: ${{ github.repository_owner }}/templates
           APP: ${{ inputs.app }}
+          NAMESPACE: ${{ inputs.namespace }}
           VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           echo "$APP" | grep -Eq '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$' || { echo "::error::app invalida: $APP"; exit 1; }
           echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$' || { echo "::error::versao invalida: $VERSION"; exit 1; }
           start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          gh workflow run deploy.yml -R "$HUB" --ref main -f app="$APP" -f action=sync -f tag="$VERSION"
+          gh workflow run tailscale.yml -R "$HUB" --ref main -f app="$APP" -f namespace="$NAMESPACE" -f action=sync -f tag="$VERSION"
           title="deploy ${APP} ${VERSION}"
           id=""
           for _ in $(seq 1 30); do
-            id="$(gh run list -R "$HUB" --workflow deploy.yml --event workflow_dispatch --limit 20 \
+            id="$(gh run list -R "$HUB" --workflow tailscale.yml --event workflow_dispatch --limit 20 \
               --json databaseId,createdAt,displayTitle \
               --jq "[.[]|select(.createdAt >= \"$start\" and .displayTitle == \"$title\")]|sort_by(.createdAt)|last|.databaseId // empty")"
             [ -n "$id" ] && break
