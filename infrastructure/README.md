@@ -76,9 +76,9 @@ O `pipeline.yml` do servico tem um job `deployment` depois de `release` e `image
 ```
 
 Ele dispara o `tailscale.yml` deste repositorio (hub, com `action=sync` e a `tag` publicada) e espera: o resultado, com o link do
-run no hub, aparece e falha no Actions do proprio servico. Os secrets do Tailscale e do ArgoCD continuam so aqui; o servico usa o
-GitHub App que ja tem. **Pre-requisito unico:** o App `hellnet-actions` precisa da permissao **Actions: Read and write** e estar
-instalado neste repositorio. O tailscale.yml fala com o ArgoCD pela **API REST** (`scripts/argocd-rest.sh`), porque o Gateway nao passa gRPC-web.
+run no hub, aparece e falha no Actions do proprio servico. Os secrets do Tailscale e do ArgoCD continuam so aqui; o servico pede ao Octo STS (OIDC, sem chave)
+um token com `actions: write` neste repositorio. **Pre-requisito unico:** o App Octo STS instalado no servico e a politica
+`.github/chainguard/cd.sts.yaml` aqui, que ja aceita qualquer repositorio do dono. O tailscale.yml fala com o ArgoCD pela **API REST** (`scripts/argocd-rest.sh`), porque o Gateway nao passa gRPC-web.
 
 ## Aviso de vencimento da auth key
 

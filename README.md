@@ -27,13 +27,13 @@ opt in explicitly:
 |---|---|---|
 | `auto-pr.yml` | one PR per supported branch, labels, no duplicate PRs | App: contents/issues/pull requests/workflows |
 | `pr-policy.yml` | title, branch, workflow ownership and shell policy | none; read-only |
-| `pr-report.yml` | one persistent Build/Tests/Schema/Shell/Security/CodeQL/Policy report | App: issues/pull requests/checks |
-| `release.yml` | repository semver, immutable bot tag and release notes | App: contents |
+| `pr-report.yml` | one persistent Build/Tests/Schema/Shell/Security/CodeQL/Policy report | Octo STS token: issues/pull requests/checks |
+| `release.yml` | repository semver, immutable bot tag and release notes | Octo STS token: contents |
 
-The private key is accepted only by write-capable jobs. Validators do not receive
-it and must run with `contents: read` or empty permissions. Workflow changes are
-required to arrive through a PR authored by `hellnet-actions[bot]`; no workflow
-or release job merges its own PR.
+There is no private key: write-capable jobs exchange their OIDC token for a short-lived
+Octo STS token, and only this repository's workflows can mint it (see `CI-CONTROL-PLANE.md`).
+Validators cannot mint tokens and must run with `contents: read` or empty permissions.
+Automation PRs are authored by `octo-sts[bot]`; no workflow or release job merges its own PR.
 
 ---
 
@@ -277,4 +277,4 @@ jobs:
 - **SARIF everywhere** — security tools output SARIF for GitHub Security tab
 - **Conventional Commits** — semver bump depends on commit messages
 - **Reusable** — opt-in workflows are `workflow_call` for composition
-- **Safe writes** — bot writes use the `hellnet-actions` installation token; `GITHUB_TOKEN` remains read-only where possible
+- **Safe writes** — bot writes use the Octo STS token (OIDC, no stored key); `GITHUB_TOKEN` remains read-only where possible
