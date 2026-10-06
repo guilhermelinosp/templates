@@ -1,7 +1,7 @@
 # ACL do Tailscale como codigo
 
 - `policy.hujson`: a politica do tailnet. Edite aqui, abra um PR, e o merge na `main` aplica.
-- `.github/workflows/tailscale-acl.yml`: no merge na `main`, o `tailscale/gitops-acl-action@v1` valida, roda a secao `tests` e so entao aplica. Nao ha teste em PR (o environment `production` so aceita a `main`).
+- `.github/workflows/tailscale.yml`, job `acl` (o mesmo arquivo tem o job `deploy`, do CD): no merge na `main`, o `tailscale/gitops-acl-action@v1` valida, roda a secao `tests` e so entao aplica. Nao ha teste em PR (o environment `production` so aceita a `main`).
 - A secao `tests` garante que o runner do CD (`tag:github`) so alcanca `192.168.1.2:443`. O repositorio e publico; o IP e da LAN domestica.
 
 ## Configuracao (uma vez, no console do Tailscale)
