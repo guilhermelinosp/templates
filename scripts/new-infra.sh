@@ -31,9 +31,9 @@ echo "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$' || { echo
 ref="${TEMPLATES_REF:-latest}"
 image="ghcr.io/${owner}/${app}"
 
-fetch() { # <caminho relativo a infra-template>
-  if [ -n "${TEMPLATES_DIR:-}" ]; then cat "${TEMPLATES_DIR}/infra-template/$1"
-  else curl -fsSL "https://raw.githubusercontent.com/guilhermelinosp/templates/${ref}/infra-template/$1"; fi
+fetch() { # <caminho relativo a infrastructure>
+  if [ -n "${TEMPLATES_DIR:-}" ]; then cat "${TEMPLATES_DIR}/infrastructure/$1"
+  else curl -fsSL "https://raw.githubusercontent.com/guilhermelinosp/templates/${ref}/infrastructure/$1"; fi
 }
 
 render() { # <origem> <destino>
