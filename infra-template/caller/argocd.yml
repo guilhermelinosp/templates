@@ -1,0 +1,28 @@
+name: argocd
+
+# Manual. A logica fica em guilhermelinosp/templates (argocd.yml@latest).
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Acao
+        type: choice
+        options: [get, diff, sync]
+        default: diff
+      tag:
+        description: Tag da imagem (ex. v1.2.3). Vazio = manter a atual.
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  argocd:
+    uses: guilhermelinosp/templates/.github/workflows/argocd.yml@latest
+    with:
+      app: __APP__
+      image: __IMAGE__
+      tag: ${{ inputs.tag }}
+      action: ${{ inputs.action }}
+    secrets: inherit

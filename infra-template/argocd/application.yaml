@@ -1,0 +1,19 @@
+# Aplicar uma vez no cluster (kubectl apply -f). Depois o ArgoCD segue este repositorio.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: __APP__
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/__OWNER__/__APP__
+    targetRevision: main
+    path: infra/overlays/homelab
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: __NAMESPACE__
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
