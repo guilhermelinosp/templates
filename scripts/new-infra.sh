@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gera infra/ plana: application.yaml (Deployment + Service) e kustomization.yaml.
+# Gera infrastructure/ plana: application.yaml (Deployment + Service), configmap.yml e kustomization.yaml.
 # A config (env) e os secrets ficam so no repositorio templates (deploy.yml). A Application do ArgoCD sai com --print-application. e os workflows chamadores no repositorio atual.
 # Uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org] [--project nome] [--print-application]
 # Variaveis: TEMPLATES_REF (default latest), TEMPLATES_DIR (usa um checkout local em vez de baixar)
@@ -26,14 +26,14 @@ done
 
 echo "$app" | grep -Eq '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$' || { echo "nome de app invalido: $app" >&2; exit 2; }
 echo "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$' || { echo "tag invalida: $tag" >&2; exit 2; }
-[ ! -e infra ] || { echo "infra/ ja existe; nada foi alterado" >&2; exit 1; }
+[ ! -e infrastructure ] || { echo "infrastructure/ ja existe; nada foi alterado" >&2; exit 1; }
 
 ref="${TEMPLATES_REF:-latest}"
 image="ghcr.io/${owner}/${app}"
 
-fetch() { # <caminho relativo a infra-template>
-  if [ -n "${TEMPLATES_DIR:-}" ]; then cat "${TEMPLATES_DIR}/infra-template/$1"
-  else curl -fsSL "https://raw.githubusercontent.com/guilhermelinosp/templates/${ref}/infra-template/$1"; fi
+fetch() { # <caminho relativo a infrastructure>
+  if [ -n "${TEMPLATES_DIR:-}" ]; then cat "${TEMPLATES_DIR}/infrastructure/$1"
+  else curl -fsSL "https://raw.githubusercontent.com/guilhermelinosp/templates/${ref}/infrastructure/$1"; fi
 }
 
 render() { # <origem> <destino>
@@ -48,15 +48,16 @@ render() { # <origem> <destino>
         -e "s#__NAMESPACE__#${namespace}#g" -e "s#__OWNER__#${owner}#g" -e "s#__PROJECT__#${project}#g" > "$2"
 }
 
-render application.yaml infra/application.yaml
-render kustomization.yaml infra/kustomization.yaml
+render application.yaml infrastructure/application.yaml
+render configmap.yml infrastructure/configmap.yml
+render kustomization.yaml infrastructure/kustomization.yaml
 
 if [ -e .github/workflows/infra-validate.yml ]; then echo ".github/workflows/infra-validate.yml ja existe; mantido" >&2
 else render caller/infra-validate.yml .github/workflows/infra-validate.yml; fi
 
-echo "ok: infra/ criado para ${app} (namespace ${namespace}, tag ${tag})"
-echo "valide: kubectl kustomize infra"
-echo "config e deploy: so no repositorio templates (secret CONFIG_<APP> + deploy.yml); nada de secret neste repositorio"
+echo "ok: infrastructure/ criado para ${app} (namespace ${namespace}, tag ${tag})"
+echo "valide: kubectl kustomize infrastructure"
+echo "config: edite infrastructure/configmap.yml (so valores nao sensiveis: o repositorio e publico)"
 if [ "$print_app" -eq 1 ]; then
   echo "--- Application do ArgoCD (kubectl apply -f -)"
   fetch argocd-application.yaml | sed -e "s#__APP__#${app}#g" -e "s#__NAMESPACE__#${namespace}#g" -e "s#__OWNER__#${owner}#g" -e "s#__PROJECT__#${project}#g"

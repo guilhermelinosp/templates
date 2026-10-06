@@ -4,19 +4,16 @@ metadata:
   name: __APP__
   namespace: __NAMESPACE__
   labels:
-    app.kubernetes.io/name: hellnet-service
     app.kubernetes.io/instance: __APP__
 spec:
   replicas: 1
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app.kubernetes.io/name: hellnet-service
       app.kubernetes.io/instance: __APP__
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: hellnet-service
         app.kubernetes.io/instance: __APP__
     spec:
       automountServiceAccountToken: false
@@ -90,7 +87,6 @@ metadata:
 spec:
   type: ClusterIP
   selector:
-    app.kubernetes.io/name: hellnet-service
     app.kubernetes.io/instance: __APP__
   ports:
     - name: http

@@ -1,14 +1,14 @@
 name: infra-validate
 
 # Renderiza o Kustomize do overlay e falha se nao compilar.
-# Inputs: path (default infra)
+# Inputs: path (default infrastructure)
 
 on:
   workflow_call:
     inputs:
       path:
         required: false
-        default: infra
+        default: infrastructure
         type: string
 
 permissions:
