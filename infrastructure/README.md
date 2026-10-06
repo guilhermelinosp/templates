@@ -62,11 +62,11 @@ O `tailscale.yml` e o `tailscale-check.yml` usam o OIDC sozinhos quando as varia
 
 ## CD nos Actions de cada servico
 
-O `pipeline.yml` do servico tem um job `cd` depois de `release` e `image`:
+O `pipeline.yml` do servico tem um job `deployment` depois de `release` e `image`:
 
 ```yaml
-  cd:
-    name: cd
+  deployment:
+    name: deployment
     needs: [release, image]
     uses: guilhermelinosp/templates/.github/workflows/cd.yml@latest
     with:
