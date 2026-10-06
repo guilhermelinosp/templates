@@ -72,7 +72,6 @@ O `pipeline.yml` do servico tem um job `deployment` depois de `release` e `image
     with:
       app: fast-platform
       version: ${{ needs.release.outputs.version }}
-      app-client-id: ${{ vars.HELLNET_ACTIONS_CLIENT_ID }}
     secrets: inherit
 ```
 

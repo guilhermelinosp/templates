@@ -249,7 +249,6 @@ jobs:
     with:
       app: my-app
       version: ${{ needs.release.outputs.version }}
-      app-client-id: ${{ vars.HELLNET_ACTIONS_CLIENT_ID }}
     secrets: inherit
 ```
 

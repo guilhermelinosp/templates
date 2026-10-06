@@ -25,8 +25,6 @@ jobs:
   release:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    env:
-      HAS_APP_KEY: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY != '' }}
 
     outputs:
       version: ${{ steps.semver.outputs.tag }}
@@ -34,28 +32,16 @@ jobs:
     steps:
       - name: Token do Octo STS (sem chave privada)
         id: octo
-        continue-on-error: true
         uses: octo-sts/action@v1.1.1
         with:
           scope: ${{ github.repository }}
           identity: pipeline
 
-      - name: Create GitHub App installation token (fallback enquanto a migracao nao termina)
-        id: app-token
-        if: steps.octo.outcome != 'success' && env.HAS_APP_KEY == 'true'
-        uses: actions/create-github-app-token@v3
-        with:
-          client-id: ${{ vars.HELLNET_ACTIONS_CLIENT_ID }}
-          private-key: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          token: ${{ steps.octo.outputs.token || steps.app-token.outputs.token }}
+          token: ${{ steps.octo.outputs.token }}
 
       - name: Calculate next version
         id: semver
@@ -119,7 +105,7 @@ jobs:
 
       - name: Create immutable tag through GitHub API
         env:
-          GH_TOKEN: ${{ steps.octo.outputs.token || steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.octo.outputs.token }}
           TAG: ${{ steps.semver.outputs.tag }}
           REPOSITORY: ${{ github.repository }}
         shell: bash
@@ -160,7 +146,7 @@ jobs:
 
       - name: Create GitHub Release
         env:
-          GH_TOKEN: ${{ steps.octo.outputs.token || steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.octo.outputs.token }}
           TAG: ${{ steps.semver.outputs.tag }}
           REPOSITORY: ${{ github.repository }}
         shell: bash
