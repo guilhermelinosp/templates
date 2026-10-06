@@ -1,6 +1,6 @@
 # infrastructure
 
-Gera `infrastructure/` plana (`application.yaml` com Deployment e Service, e `kustomization.yaml`) para servicos
+Gera `infrastructure/` plana (`application.yml` com Deployment e Service, e `kustomization.yml`) para servicos
 `hellnet-service`. Dentro do repositorio do servico:
 
 ```bash
@@ -22,8 +22,8 @@ gh workflow run deploy.yml -R guilhermelinosp/templates -f app=fast-platform -f 
 |---|---|
 | Secrets | `TS_AUTHKEY`, `ARGOCD_TOKEN`, `KUBE_TOKEN`, `KUBE_CA`, `CONFIG_<APP>` (conteudo do env da app) |
 | Variables | `ARGOCD_SERVER`, `K8S_API_HOST` |
-| Cluster (uma vez) | `cluster-config-sync.yaml` (SA so de ConfigMap no ns `fast`) e `appproject.yaml` |
+| Cluster (uma vez) | `cluster-config-sync.yml` (SA so de ConfigMap no ns `fast`) e `appproject.yml` |
 
 Nova app: crie o secret `CONFIG_<APP>`, adicione-a nas `options`, no `case` e no env do passo Config
-de `deploy.yml`, e inclua o repositorio em `sourceRepos` do `appproject.yaml`.
+de `deploy.yml`, e inclua o repositorio em `sourceRepos` do `appproject.yml`.
 O ArgoCD nao rastreia o ConfigMap: use `config=true` e `restart=true` ao mudar um valor.

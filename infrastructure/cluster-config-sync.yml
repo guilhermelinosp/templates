@@ -1,5 +1,5 @@
 # Credencial do cluster usada pelo deploy.yml SOMENTE para aplicar ConfigMaps no namespace fast.
-# Aplicar uma vez: kubectl apply -f cluster-config-sync.yaml
+# Aplicar uma vez: kubectl apply -f cluster-config-sync.yml
 # Depois gere os secrets KUBE_TOKEN e KUBE_CA no repositorio templates:
 #   kubectl -n fast get secret config-sync-token -o jsonpath='{.data.token}' | base64 -d
 #   kubectl -n fast get secret config-sync-token -o jsonpath='{.data.ca\.crt}'   # ja em base64

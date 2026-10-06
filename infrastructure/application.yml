@@ -35,7 +35,7 @@ spec:
 #SVC-END
           envFrom:
             - configMapRef:
-                name: __APP__-config
+                name: __APP__
           env:
             - name: HELLNET_SERVICE
               value: __APP__
