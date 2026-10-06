@@ -49,3 +49,24 @@ Basta um passo no console, uma vez:
    `repo:guilhermelinosp/templates:environment:production`, escopo `auth_keys` (write) com a tag `tag:ci`.
 3. Cadastre as variables `TS_CLIENT_ID` e `TS_AUDIENCE` no repositorio `templates`. O `deploy.yml` passa a usar o OIDC sozinho;
    `TS_AUTHKEY` pode ser apagado.
+
+## CD nos Actions de cada servico
+
+O `pipeline.yml` do servico tem um job `cd` depois de `release` e `image`:
+
+```yaml
+  cd:
+    name: cd
+    needs: [release, image]
+    uses: guilhermelinosp/templates/.github/workflows/cd.yml@latest
+    with:
+      app: fast-platform
+      version: ${{ needs.release.outputs.version }}
+      app-client-id: ${{ vars.HELLNET_ACTIONS_CLIENT_ID }}
+    secrets: inherit
+```
+
+Ele dispara o `deploy.yml` deste repositorio (hub, com `action=sync` e a `tag` publicada) e espera: o resultado, com o link do
+run no hub, aparece e falha no Actions do proprio servico. Os secrets do Tailscale e do ArgoCD continuam so aqui; o servico usa o
+GitHub App que ja tem. **Pre-requisito unico:** o App `hellnet-actions` precisa da permissao **Actions: Read and write** e estar
+instalado neste repositorio. O deploy.yml fala com o ArgoCD pela **API REST** (`scripts/argocd-rest.sh`), porque o Gateway nao passa gRPC-web.
