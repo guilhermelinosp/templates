@@ -5,10 +5,9 @@ resources:
   - application.yaml
 labels:
   - pairs:
-      app.kubernetes.io/name: hellnet-service
       app.kubernetes.io/instance: __APP__
     includeSelectors: false
-# Tag da imagem: o workflow argocd ajusta (argocd app set --kustomize-image)
+# Tag da imagem: o deploy.yml do templates ajusta (argocd app set --kustomize-image)
 # ou edite aqui e faca merge.
 images:
   - name: __IMAGE__
