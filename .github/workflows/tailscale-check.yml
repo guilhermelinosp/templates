@@ -25,6 +25,7 @@ jobs:
     environment: production
     timeout-minutes: 10
     env:
+      HAS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET != '' }}
       ARGOCD_SERVER: ${{ vars.ARGOCD_SERVER }}
       GATEWAY_IP: ${{ vars.K8S_API_HOST }}
     steps:
@@ -37,20 +38,32 @@ jobs:
           echo "auth key vence em ${left} dia(s) (${EXPIRES})"
           [ "$left" -gt 14 ] || echo "::warning::a auth key do Tailscale vence em ${left} dia(s); gere outra e atualize o secret TS_AUTHKEY"
 
-      - name: Tailscale (identidade federada)
+      - name: Tailscale (identidade federada, sem vencimento)
         if: vars.TS_CLIENT_ID != '' && vars.TS_AUDIENCE != ''
         uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ vars.TS_CLIENT_ID }}
           audience: ${{ vars.TS_AUDIENCE }}
           tags: tag:github
+          use-cache: "true"
+          ping: ${{ vars.K8S_API_HOST }}
+
+      - name: Tailscale (OAuth client, sem vencimento)
+        if: vars.TS_CLIENT_ID != '' && vars.TS_AUDIENCE == '' && env.HAS_OAUTH_SECRET == 'true'
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ vars.TS_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:github
+          use-cache: "true"
           ping: ${{ vars.K8S_API_HOST }}
 
       - name: Tailscale (auth key)
-        if: vars.TS_CLIENT_ID == '' || vars.TS_AUDIENCE == ''
+        if: vars.TS_CLIENT_ID == '' || (vars.TS_AUDIENCE == '' && env.HAS_OAUTH_SECRET != 'true')
         uses: tailscale/github-action@v4
         with:
           authkey: ${{ secrets.TS_AUTHKEY }}
+          use-cache: "true"
           ping: ${{ vars.K8S_API_HOST }}
 
       - name: ArgoCD responde pelo gateway
