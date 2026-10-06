@@ -71,7 +71,6 @@ jobs:
           oauth-client-id: ${{ vars.TS_CLIENT_ID }}
           audience: ${{ vars.TS_AUDIENCE }}
           tags: tag:ci
-          args: --accept-routes
           use-cache: "true"
           ping: ${{ vars.K8S_API_HOST }}
 
@@ -80,7 +79,6 @@ jobs:
         uses: tailscale/github-action@v4
         with:
           authkey: ${{ secrets.TS_AUTHKEY }}
-          args: --accept-routes
           use-cache: "true"
           ping: ${{ vars.K8S_API_HOST }}
 
