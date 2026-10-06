@@ -4,23 +4,35 @@ on:
   workflow_call:
     inputs:
       app-client-id:
-        required: true
+        required: false
         type: string
     secrets:
       HELLNET_ACTIONS_PRIVATE_KEY:
-        required: true
+        required: false
 
 permissions:
   contents: read
   actions: read
+  id-token: write
 
 jobs:
   report:
     if: github.event_name == 'workflow_run'
     runs-on: ubuntu-latest
+    env:
+      HAS_APP_KEY: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY != '' }}
     steps:
-      - name: Create reporter token
+      - name: Token do Octo STS (sem chave privada)
+        id: octo
+        continue-on-error: true
+        uses: octo-sts/action@v1.1.1
+        with:
+          scope: ${{ github.repository }}
+          identity: pr-report
+
+      - name: Create reporter token (fallback enquanto a migracao nao termina)
         id: app-token
+        if: steps.octo.outcome != 'success' && env.HAS_APP_KEY == 'true'
         uses: actions/create-github-app-token@v3
         with:
           client-id: ${{ inputs.app-client-id }}
@@ -33,7 +45,7 @@ jobs:
 
       - name: Publish one persistent report
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.octo.outputs.token || steps.app-token.outputs.token }}
           REPOSITORY: ${{ github.repository }}
           WORKFLOW_RUN_JSON: ${{ toJSON(github.event.workflow_run) }}
         run: |

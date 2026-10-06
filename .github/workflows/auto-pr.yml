@@ -13,19 +13,31 @@ on:
         type: string
     secrets:
       HELLNET_ACTIONS_PRIVATE_KEY:
-        description: GitHub App private key for hellnet-actions
-        required: true
+        description: Opcional (fallback do App). O caminho principal e o Octo STS, sem chave
+        required: false
 
 permissions:
   contents: write
   pull-requests: write
+  id-token: write
 
 jobs:
   create-pr:
     runs-on: ubuntu-latest
+    env:
+      HAS_APP_KEY: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY != '' }}
     steps:
-      - name: Create GitHub App installation token
+      - name: Token do Octo STS (sem chave privada)
+        id: octo
+        continue-on-error: true
+        uses: octo-sts/action@v1.1.1
+        with:
+          scope: ${{ github.repository }}
+          identity: auto-pr
+
+      - name: Create GitHub App installation token (fallback enquanto a migracao nao termina)
         id: app-token
+        if: steps.octo.outcome != 'success' && env.HAS_APP_KEY == 'true'
         uses: actions/create-github-app-token@v3
         with:
           client-id: ${{ inputs.app-id || inputs.app-client-id }}
@@ -38,12 +50,12 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.octo.outputs.token || steps.app-token.outputs.token }}
 
       - name: Create or update PR to main
         id: create-pr
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.octo.outputs.token || steps.app-token.outputs.token }}
           REPOSITORY: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
         run: |
