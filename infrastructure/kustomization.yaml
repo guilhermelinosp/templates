@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: __NAMESPACE__
 resources:
   - application.yaml
+  - configmap.yml
 labels:
   - pairs:
       app.kubernetes.io/instance: __APP__

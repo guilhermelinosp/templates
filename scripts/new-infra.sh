@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gera infrastructure/ plana: application.yaml (Deployment + Service) e kustomization.yaml.
+# Gera infrastructure/ plana: application.yaml (Deployment + Service), configmap.yml e kustomization.yaml.
 # A config (env) e os secrets ficam so no repositorio templates (deploy.yml). A Application do ArgoCD sai com --print-application. e os workflows chamadores no repositorio atual.
 # Uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org] [--project nome] [--print-application]
 # Variaveis: TEMPLATES_REF (default latest), TEMPLATES_DIR (usa um checkout local em vez de baixar)
@@ -49,6 +49,7 @@ render() { # <origem> <destino>
 }
 
 render application.yaml infrastructure/application.yaml
+render configmap.yml infrastructure/configmap.yml
 render kustomization.yaml infrastructure/kustomization.yaml
 
 if [ -e .github/workflows/infra-validate.yml ]; then echo ".github/workflows/infra-validate.yml ja existe; mantido" >&2
@@ -56,7 +57,7 @@ else render caller/infra-validate.yml .github/workflows/infra-validate.yml; fi
 
 echo "ok: infrastructure/ criado para ${app} (namespace ${namespace}, tag ${tag})"
 echo "valide: kubectl kustomize infrastructure"
-echo "config e deploy: so no repositorio templates (secret CONFIG_<APP> + deploy.yml); nada de secret neste repositorio"
+echo "config: edite infrastructure/configmap.yml (so valores nao sensiveis: o repositorio e publico)"
 if [ "$print_app" -eq 1 ]; then
   echo "--- Application do ArgoCD (kubectl apply -f -)"
   fetch argocd-application.yaml | sed -e "s#__APP__#${app}#g" -e "s#__NAMESPACE__#${namespace}#g" -e "s#__OWNER__#${owner}#g" -e "s#__PROJECT__#${project}#g"
