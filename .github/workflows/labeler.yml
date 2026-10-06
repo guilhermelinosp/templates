@@ -8,7 +8,7 @@ on:
   workflow_call:
     inputs:
       app-client-id:
-        required: true
+        required: false
         type: string
       app-id:
         description: Compatibility alias for app-id
@@ -16,19 +16,31 @@ on:
         type: string
     secrets:
       HELLNET_ACTIONS_PRIVATE_KEY:
-        required: true
+        required: false
 
 permissions:
   contents: read
   pull-requests: write
+  id-token: write
 
 jobs:
   label:
     if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
+    env:
+      HAS_APP_KEY: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY != '' }}
     steps:
-      - name: Create GitHub App installation token
+      - name: Token do Octo STS (sem chave privada)
+        id: octo
+        continue-on-error: true
+        uses: octo-sts/action@v1.1.1
+        with:
+          scope: ${{ github.repository }}
+          identity: labeler
+
+      - name: Create GitHub App installation token (fallback enquanto a migracao nao termina)
         id: app-token
+        if: steps.octo.outcome != 'success' && env.HAS_APP_KEY == 'true'
         uses: actions/create-github-app-token@v3
         with:
           client-id: ${{ inputs.app-id || inputs.app-client-id }}
@@ -38,5 +50,5 @@ jobs:
 
       - uses: actions/labeler@v7
         with:
-          repo-token: ${{ steps.app-token.outputs.token }}
+          repo-token: ${{ steps.octo.outputs.token || steps.app-token.outputs.token }}
           sync-labels: true

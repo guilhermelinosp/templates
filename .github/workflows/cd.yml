@@ -21,8 +21,8 @@ on:
         type: string
         default: fast
       app-client-id:
-        description: Client ID do GitHub App hellnet-actions
-        required: true
+        description: Opcional (fallback do App)
+        required: false
         type: string
       timeout-minutes:
         required: false
@@ -30,22 +30,34 @@ on:
         type: number
     secrets:
       HELLNET_ACTIONS_PRIVATE_KEY:
-        required: true
+        required: false
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   cd:
     name: Deploy ${{ inputs.app }} ${{ inputs.version }}
     runs-on: ubuntu-latest
+    env:
+      HAS_APP_KEY: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY != '' }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     concurrency:
       group: cd-${{ inputs.app }}
       cancel-in-progress: false
     steps:
-      - name: Token do App (so Actions no templates)
+      - name: Token do Octo STS (sem chave privada)
+        id: octo
+        continue-on-error: true
+        uses: octo-sts/action@v1.1.1
+        with:
+          scope: ${{ github.repository_owner }}/templates
+          identity: cd
+
+      - name: Token do App (so Actions no templates) (fallback enquanto a migracao nao termina)
         id: app-token
+        if: steps.octo.outcome != 'success' && env.HAS_APP_KEY == 'true'
         uses: actions/create-github-app-token@v3
         with:
           client-id: ${{ inputs.app-client-id }}
@@ -56,7 +68,7 @@ jobs:
 
       - name: Disparar o deploy no hub e aguardar
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.octo.outputs.token || steps.app-token.outputs.token }}
           HUB: ${{ github.repository_owner }}/templates
           APP: ${{ inputs.app }}
           NAMESPACE: ${{ inputs.namespace }}
