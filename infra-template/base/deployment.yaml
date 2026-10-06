@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: __APP__
+  namespace: __NAMESPACE__
+  labels:
+    app.kubernetes.io/name: hellnet-service
+    app.kubernetes.io/instance: __APP__
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hellnet-service
+      app.kubernetes.io/instance: __APP__
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hellnet-service
+        app.kubernetes.io/instance: __APP__
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: __APP__
+          image: __IMAGE__:__TAG__
+          imagePullPolicy: IfNotPresent
+#SVC-BEGIN
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+#SVC-END
+          envFrom:
+            - configMapRef:
+                name: __APP__
+          env:
+            - name: HELLNET_SERVICE
+              value: __APP__
+#DB-BEGIN
+            - name: DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: fast-database
+                  key: DATABASE_USERNAME
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fast-database
+                  key: DATABASE_PASSWORD
+#DB-END
+          resources:
+            requests:
+              cpu: 20m
+              memory: 48Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+#SVC-BEGIN
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 10
+            failureThreshold: 6
+#SVC-END
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

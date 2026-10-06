@@ -1,0 +1,26 @@
+name: infra-validate
+
+# Renderiza o Kustomize do overlay e falha se nao compilar.
+# Inputs: path (default infra/overlays/homelab)
+
+on:
+  workflow_call:
+    inputs:
+      path:
+        required: false
+        default: infra/overlays/homelab
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validar Kustomize
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: kustomize build
+        env:
+          KPATH: ${{ inputs.path }}
+        run: kubectl kustomize "$KPATH" > /dev/null

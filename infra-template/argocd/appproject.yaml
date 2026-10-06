@@ -1,0 +1,30 @@
+# AppProject compartilhado que limita o que o token do CI consegue fazer.
+# Aplicar uma vez no cluster. Ao adicionar um servico, inclua o repositorio em sourceRepos.
+# Mesmo com permissao `update` (necessaria para `argocd app set`), o token NAO consegue
+# apontar a app para outro repositorio nem implantar fora do namespace permitido.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: fast
+  namespace: argocd
+spec:
+  description: Servicos fast (deploy via CI restrito)
+  sourceRepos:
+    - https://github.com/guilhermelinosp/fast-platform
+    - https://github.com/guilhermelinosp/fast-sockets
+    - https://github.com/guilhermelinosp/fast-listeners
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: fast
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - { group: apps, kind: Deployment }
+    - { group: "", kind: Service }
+    - { group: "", kind: ConfigMap }
+  roles:
+    - name: ci
+      description: CI do GitHub (get, diff, set de imagem e sync; sem create/delete/override)
+      policies:
+        - p, proj:fast:ci, applications, get, fast/*, allow
+        - p, proj:fast:ci, applications, update, fast/*, allow
+        - p, proj:fast:ci, applications, sync, fast/*, allow
