@@ -25,7 +25,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: __APP__
-          image: __IMAGE__:__TAG__
+          image: __IMAGE__
           imagePullPolicy: IfNotPresent
 #SVC-BEGIN
           ports:
