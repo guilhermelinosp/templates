@@ -1,13 +1,10 @@
 name: tailscale-acl
 
-# GitOps da ACL do Tailscale: PR valida e roda os testes; merge na main aplica. Docs: tailscale/README.md
-# Credencial OIDC propria (escopo policy_file), separada da do CD (auth_keys): variables TS_ACL_CLIENT_ID, TS_ACL_AUDIENCE e TS_TAILNET.
-# Enquanto nao existirem, o job e pulado. PR de fork nao recebe id-token, entao so roda em PR do proprio repositorio.
+# GitOps da ACL do Tailscale: o merge na main valida (secao tests), e so entao aplica. Docs: tailscale/README.md
+# Usa a MESMA credencial OIDC do CD (variables TS_CLIENT_ID e TS_AUDIENCE), que precisa dos escopos auth_keys e policy_file.
+# Roda no environment production (so a main), igual ao subject da credencial; por isso nao ha teste em PR.
 on:
   push:
-    branches: [main]
-    paths: ['tailscale/**', '.github/workflows/tailscale-acl.yml']
-  pull_request:
     branches: [main]
     paths: ['tailscale/**', '.github/workflows/tailscale-acl.yml']
   workflow_dispatch:
@@ -22,31 +19,19 @@ concurrency:
 
 jobs:
   acl:
-    name: ${{ github.event_name == 'pull_request' && 'Testar a ACL' || 'Aplicar a ACL' }}
-    if: >-
-      vars.TS_ACL_CLIENT_ID != '' && vars.TS_ACL_AUDIENCE != '' && vars.TS_TAILNET != '' &&
-      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    name: Aplicar a ACL
+    if: vars.TS_CLIENT_ID != '' && vars.TS_AUDIENCE != '' && vars.TS_TAILNET != ''
     runs-on: ubuntu-latest
+    environment: production
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
-      - name: Validar e testar a ACL (PR)
-        if: github.event_name == 'pull_request'
+      - name: Validar, testar e aplicar a ACL
         uses: tailscale/gitops-acl-action@v1
         with:
-          oauth-client-id: ${{ vars.TS_ACL_CLIENT_ID }}
-          audience: ${{ vars.TS_ACL_AUDIENCE }}
-          tailnet: ${{ vars.TS_TAILNET }}
-          policy-file: tailscale/policy.hujson
-          action: test
-
-      - name: Validar, testar e aplicar a ACL (main)
-        if: github.event_name != 'pull_request'
-        uses: tailscale/gitops-acl-action@v1
-        with:
-          oauth-client-id: ${{ vars.TS_ACL_CLIENT_ID }}
-          audience: ${{ vars.TS_ACL_AUDIENCE }}
+          oauth-client-id: ${{ vars.TS_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
           tailnet: ${{ vars.TS_TAILNET }}
           policy-file: tailscale/policy.hujson
           action: apply
