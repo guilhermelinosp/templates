@@ -1,8 +1,10 @@
 name: argocd
 
 # Opera uma Application do ArgoCD pela tailnet (Tailscale) com o argocd CLI.
-# Autenticacao no Tailscale: workload identity federation (OIDC do GitHub), sem secret.
-# O chamador precisa de `permissions: id-token: write`.
+# Autenticacao no Tailscale, de duas formas:
+#  - OAuth client: secret TS_OAUTH_SECRET + input ts-client-id.
+#  - Workload identity federation (OIDC, sem secret): input ts-audience (o chamador
+#    precisa de `permissions: id-token: write`). Se ts-audience for informado, ele vence.
 # Secret: ARGOCD_TOKEN (token de role de projeto, restrito ao AppProject)
 # Uso: uses: guilhermelinosp/templates/.github/workflows/argocd.yml@latest
 
@@ -41,8 +43,9 @@ on:
         required: true
         type: string
       ts-audience:
-        description: Audience da credencial federada do Tailscale (vars do chamador)
-        required: true
+        description: Audience da credencial federada (vazio = usar o OAuth client com secret)
+        required: false
+        default: ""
         type: string
       environment:
         description: Environment do GitHub (revisor obrigatorio e restricao de branch)
@@ -56,6 +59,8 @@ on:
     secrets:
       ARGOCD_TOKEN:
         required: true
+      TS_OAUTH_SECRET:
+        required: false
 
 permissions:
   contents: read
@@ -89,10 +94,23 @@ jobs:
             echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$' || { echo "::error::tag invalida: $TAG"; exit 1; }
           fi
 
-      - uses: tailscale/github-action@v4
+      - name: Tailscale (OIDC federado)
+        if: inputs.ts-audience != ''
+        uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ inputs.ts-client-id }}
           audience: ${{ inputs.ts-audience }}
+          tags: tag:ci
+          args: --accept-routes
+          use-cache: "true"
+          ping: ${{ inputs.gateway-ip }}
+
+      - name: Tailscale (OAuth client)
+        if: inputs.ts-audience == ''
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ inputs.ts-client-id }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
           args: --accept-routes
           use-cache: "true"
