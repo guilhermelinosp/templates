@@ -2,9 +2,10 @@ name: deploy
 
 # Hub de deploy: TODOS os secrets e a config de cada app ficam so neste repositorio.
 # Disparo manual: gh workflow run deploy.yml -R guilhermelinosp/templates -f app=fast-platform -f tag=v1.2.3
-# Secrets: TS_AUTHKEY, ARGOCD_TOKEN, KUBE_TOKEN, KUBE_CA (base64), CONFIG_<APP> (conteudo do env da app)
+# Secrets: TS_AUTHKEY, ARGOCD_TOKEN
 # Variables: ARGOCD_SERVER, K8S_API_HOST
-# Para incluir uma app: adicione-a em `options` abaixo, no `case` e no env do passo Config.
+# Para incluir uma app: adicione-a em `options` e no `case` do passo Validar entradas.
+# A config (env) vive em infrastructure/configmap.yml de cada repositorio (o ArgoCD a aplica); a versao da imagem e do Image Updater.
 on:
   workflow_dispatch:
     inputs:
@@ -22,10 +23,6 @@ on:
         description: Fixa uma tag (ex. v1.2.3), p.ex. para rollback. O Image Updater volta a versao mais nova no proximo ciclo, a menos que voce o pause. Vazio = nao mexer.
         type: string
         required: false
-      config:
-        description: Aplicar o ConfigMap a partir do secret de config
-        type: boolean
-        default: false
       restart:
         description: Reiniciar o Deployment depois do sync
         type: boolean
@@ -72,36 +69,6 @@ jobs:
 
       - name: Resolver o ArgoCD pelo gateway
         run: echo "$GATEWAY_IP $ARGOCD_SERVER" | sudo tee -a /etc/hosts
-
-      - name: Config (ConfigMap a partir do secret)
-        if: inputs.config
-        env:
-          KUBE_TOKEN: ${{ secrets.KUBE_TOKEN }}
-          KUBE_CA: ${{ secrets.KUBE_CA }}
-          CONFIG_FAST_PLATFORM: ${{ secrets.CONFIG_FAST_PLATFORM }}
-          CONFIG_FAST_SOCKETS: ${{ secrets.CONFIG_FAST_SOCKETS }}
-          CONFIG_FAST_LISTENERS: ${{ secrets.CONFIG_FAST_LISTENERS }}
-        run: |
-          set -euo pipefail
-          case "$APP" in
-            fast-platform) data="$CONFIG_FAST_PLATFORM" ;;
-            fast-sockets) data="$CONFIG_FAST_SOCKETS" ;;
-            fast-listeners) data="$CONFIG_FAST_LISTENERS" ;;
-          esac
-          [ -n "$data" ] || { echo "::error::secret de config vazio para $APP"; exit 1; }
-          # logs sao publicos: mascara cada valor antes de qualquer saida
-          while IFS= read -r line; do v="${line#*=}"; [ -n "$v" ] && echo "::add-mask::$v"; done <<< "$data"
-          umask 077
-          printf '%s\n' "$data" > "$RUNNER_TEMP/config.env"
-          printf '%s' "$KUBE_CA" | base64 -d > "$RUNNER_TEMP/ca.crt"
-          export KUBECONFIG="$RUNNER_TEMP/kubeconfig"
-          kubectl config set-cluster c --server="https://${GATEWAY_IP}:6443" --certificate-authority="$RUNNER_TEMP/ca.crt" --embed-certs=true >/dev/null
-          kubectl config set-credentials u --token="$KUBE_TOKEN" >/dev/null
-          kubectl config set-context x --cluster=c --user=u --namespace="$NAMESPACE" >/dev/null
-          kubectl config use-context x >/dev/null
-          kubectl create configmap "${APP}" --from-env-file="$RUNNER_TEMP/config.env" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-          echo "ConfigMap ${APP} aplicado"
-          rm -f "$RUNNER_TEMP/config.env" "$RUNNER_TEMP/ca.crt" "$KUBECONFIG"
 
       - name: Instalar argocd CLI
         run: |
