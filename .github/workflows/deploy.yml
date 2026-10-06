@@ -19,7 +19,7 @@ on:
         options: [diff, sync]
         default: diff
       tag:
-        description: Tag da imagem (ex. v1.2.3). Vazio = manter a atual.
+        description: Fixa uma tag (ex. v1.2.3), p.ex. para rollback. O Image Updater volta a versao mais nova no proximo ciclo, a menos que voce o pause. Vazio = nao mexer.
         type: string
         required: false
       config:

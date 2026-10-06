@@ -8,8 +8,4 @@ labels:
   - pairs:
       app.kubernetes.io/instance: __APP__
     includeSelectors: false
-# Tag da imagem: o deploy.yml do templates ajusta (argocd app set --kustomize-image)
-# ou edite aqui e faca merge.
-images:
-  - name: __IMAGE__
-    newTag: __TAG__
+# A versao da imagem NAO fica no Git: o ArgoCD Image Updater (image-updater.yml) a mantem na Application.
