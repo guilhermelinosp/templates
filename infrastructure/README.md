@@ -9,24 +9,24 @@ curl -fsSL https://raw.githubusercontent.com/guilhermelinosp/templates/latest/sc
 
 Nao sobrescreve nada que ja exista. O chamador `infra-validate` vai para `.github/workflows/`.
 
-## Deploy, secrets e config: tudo no templates
+## Deploy e secrets: no templates
 
-Os repositorios dos servicos nao guardam secret, variable nem config. Tudo fica nas configuracoes
-**deste** repositorio (`templates`) e o deploy sai de `deploy.yml`:
+Os repositorios dos servicos nao guardam secret nem variable. Os de deploy ficam nas configuracoes **deste** repositorio
+(`templates`) e o deploy manual sai de `deploy.yml`:
 
 ```bash
-gh workflow run deploy.yml -R guilhermelinosp/templates -f app=fast-platform -f tag=v1.2.3 -f action=sync -f config=true
+gh workflow run deploy.yml -R guilhermelinosp/templates -f app=fast-platform -f action=sync
 ```
 
 | Onde | O que |
 |---|---|
-| Secrets | `TS_AUTHKEY`, `ARGOCD_TOKEN`, `KUBE_TOKEN`, `KUBE_CA`, `CONFIG_<APP>` (conteudo do env da app) |
+| Secrets | `TS_AUTHKEY`, `ARGOCD_TOKEN` |
 | Variables | `ARGOCD_SERVER`, `K8S_API_HOST` |
-| Cluster (uma vez) | `cluster-config-sync.yml` (SA so de ConfigMap no ns `fast`) e `appproject.yml` |
+| Cluster (uma vez) | `appproject.yml` e `image-updater.yml` |
 
-Nova app: crie o secret `CONFIG_<APP>`, adicione-a nas `options`, no `case` e no env do passo Config
-de `deploy.yml`, e inclua o repositorio em `sourceRepos` do `appproject.yml`.
-O ArgoCD nao rastreia o ConfigMap: use `config=true` e `restart=true` ao mudar um valor.
+A config (env) de cada servico vive em `infrastructure/configmap.yml` do proprio repositorio e o ArgoCD a aplica
+(so valores nao sensiveis: o repositorio e publico; senhas ficam em Secrets do cluster).
+Nova app: acrescente-a em `options` e no `case` de `deploy.yml`, em `sourceRepos` do `appproject.yml` e em `image-updater.yml`.
 
 ## Versao da imagem: sempre a ultima, sem bump
 
