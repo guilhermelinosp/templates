@@ -5,7 +5,7 @@ metadata:
   name: __APP__
   namespace: argocd
 spec:
-  project: default
+  project: __PROJECT__
   source:
     repoURL: https://github.com/__OWNER__/__APP__
     targetRevision: main

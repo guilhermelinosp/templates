@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Gera infra/ (Kustomize + Application do ArgoCD) e os workflows chamadores no repositorio atual.
-# Uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org]
+# Uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org] [--project nome]
 # Variaveis: TEMPLATES_REF (default latest), TEMPLATES_DIR (usa um checkout local em vez de baixar)
 set -euo pipefail
 
 app="${1:-}"
-[ -n "$app" ] || { echo "uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org]" >&2; exit 2; }
+[ -n "$app" ] || { echo "uso: new-infra.sh <app> [--no-service] [--db] [--tag vX.Y.Z] [--namespace ns] [--owner org] [--project nome]" >&2; exit 2; }
 shift
 
-service=1 db=0 tag="v0.0.0" namespace="fast" owner="guilhermelinosp"
+service=1 db=0 tag="v0.0.0" namespace="fast" owner="guilhermelinosp" project="fast"
 while [ $# -gt 0 ]; do
   case "$1" in
     --no-service) service=0 ;;
@@ -16,6 +16,7 @@ while [ $# -gt 0 ]; do
     --tag) tag="${2:?--tag exige valor}"; shift ;;
     --namespace) namespace="${2:?--namespace exige valor}"; shift ;;
     --owner) owner="${2:?--owner exige valor}"; shift ;;
+    --project) project="${2:?--project exige valor}"; shift ;;
     *) echo "opcao desconhecida: $1" >&2; exit 2 ;;
   esac
   shift
@@ -42,7 +43,7 @@ render() { # <origem> <destino>
     /^#DB-END$/    { skip = 0; inblk = 0; next }
     !skip { print }' |
     sed -e "s#__APP__#${app}#g" -e "s#__IMAGE__#${image}#g" -e "s#__TAG__#${tag}#g" \
-        -e "s#__NAMESPACE__#${namespace}#g" -e "s#__OWNER__#${owner}#g" > "$2"
+        -e "s#__NAMESPACE__#${namespace}#g" -e "s#__OWNER__#${owner}#g" -e "s#__PROJECT__#${project}#g" > "$2"
 }
 
 render base/deployment.yaml infra/base/deployment.yaml
