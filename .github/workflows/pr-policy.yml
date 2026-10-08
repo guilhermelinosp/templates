@@ -30,10 +30,11 @@ jobs:
 
           files="$(gh api --paginate "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" --jq '.[].filename')"
           if printf '%s\n' "$files" | grep -qE '^\.github/workflows/'; then
-            [ "$PR_AUTHOR" = 'hellnet-actions[bot]' ] \
-              || { echo 'Workflow changes must be proposed by hellnet-actions[bot]'; exit 1; }
+            case "$PR_AUTHOR" in hellnet-actions\[bot\]|octo-sts\[bot\]) ;; *)
+              echo 'Workflow changes must be proposed by the bot (octo-sts[bot] via auto-pr, or hellnet-actions[bot])'; exit 1 ;;
+            esac
           fi
-          if printf '%s' "$PR_BRANCH" | grep -qE '^bot/' && [ "$PR_AUTHOR" != 'hellnet-actions[bot]' ]; then
+          if printf '%s' "$PR_BRANCH" | grep -qE '^bot/' && [ "$PR_AUTHOR" != 'hellnet-actions[bot]' ] && [ "$PR_AUTHOR" != 'octo-sts[bot]' ]; then
             echo 'bot/* branches are reserved for hellnet-actions[bot]'
             exit 1
           fi
