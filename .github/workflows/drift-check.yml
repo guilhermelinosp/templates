@@ -1,7 +1,7 @@
 name: golangci-config-drift
 
 # Detects when a Hellnet Go repo's committed .golangci.yml drifts from the
-# canonical config owned by ci-templates. Fails the workflow (and notifies via
+# canonical config owned by templates. Fails the workflow (and notifies via
 # the run status) so drift is caught before it spreads.
 
 on:
@@ -19,7 +19,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          canonical="$(curl -fsSL https://raw.githubusercontent.com/guilhermelinosp/ci-templates/main/.golangci.yml)"
+          canonical="$(curl -fsSL https://raw.githubusercontent.com/guilhermelinosp/templates/main/.golangci.yml)"
           repos="hellnet-lib-kafka hellnet-lib-cache golang-lib-template golang-api-template golang-worker-template golang-cli-template hellnet-lib-telemetry"
           status=0
           for r in $repos; do

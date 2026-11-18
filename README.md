@@ -43,9 +43,9 @@ Automation PRs are authored by `octo-sts[bot]`; no workflow or release job merge
 
 | Workflow | Description |
 |---|---|
-| `go-build.yml` | Go tidy, vet, lint (golangci-lint), build, test with cache |
+| `go-build.yml` | Go: verifica `go.mod`/`go.sum` (falha se o `go mod tidy` mudar algo), `go vet`, gofmt (falha se houver arquivo fora do padrão), lint (golangci-lint), build, test com race e cache |
 | `go-quality.yml` | All-in-one PR gate: module integrity, vet, extra checks, race tests + coverage artifact, canonical-config lint, build, smoke |
-| `govulncheck.yml` | stdlib vulnerability scan with call-graph reachability |
+| `govulncheck.yml` | Vulnerability scan com alcance por call graph; `govulncheck` fixado em `v1.10.0`. `go-version` vale quando `go-version-file` é vazio |
 | `goreleaser-publish.yml` | Publish cross-platform binaries onto the release created by `release.yml`. A config do GoReleaser é buscada de `ci-templates` (branch `main`) |
 | _CodeQL_ | kept **per-repo** (inline) — reusable variant triggers GitHub validation quirks across callers; see golang-cli/golang-api templates for the canonical copy |
 
@@ -170,6 +170,7 @@ Classificação pelo que o YAML faz (não pelo que o action faz por padrão):
 
 #### Limitações conhecidas e requisitos externos
 
+- **golangci-lint fixado em `v2.15.0`** nos workflows Go (era `latest`). Para acompanhar versões novas, passe `golangci-version` explicitamente.
 - **Verificações em runner real.** `self-test.yml` (manual, `workflow_dispatch`) roda exceções, readiness, o validador por workflow reutilizável, e os testes de passos que mascaravam erro (`scripts/tests/masking`). Os demais workflows são validados localmente (YAML, actionlint, zizmor, conftest, dry-run do Kyverno) e em PRs. DAST contra alvo real e verificação de assinatura Kyverno ainda não foram executados.
 - **Assinatura Cosign não verificada de ponta a ponta.** Exige uma imagem assinada pelo `cosign.yml` e acesso de leitura ao `ghcr.io`.
 - **Scripts vêm do `templates-ref`.** `dast.yml` e `vuln-exceptions.yml` exigem `templates-ref` (tag ou SHA do repositório templates). Passe a mesma versão usada em `uses:`. Não há checagem automática de que as duas coincidem.

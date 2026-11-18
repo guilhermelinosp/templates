@@ -13,7 +13,7 @@ on:
         type: string
       golangci-version:
         required: false
-        default: "latest"
+        default: "v2.15.0"
         type: string
       working-directory:
         required: false
@@ -40,11 +40,27 @@ jobs:
           go-version: ${{ inputs.go-version }}
           cache: true
 
-      - name: Tidy
-        run: go mod tidy
+      - name: Module integrity
+        run: |
+          go mod verify
+          go mod tidy
+          if ! git diff --quiet -- go.mod go.sum; then
+            echo "::error::go.mod/go.sum fora de sincronia: rode 'go mod tidy' e commite"
+            git diff -- go.mod go.sum
+            exit 1
+          fi
 
       - name: Vet
         run: go vet ./...
+
+      - name: Format
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::arquivos sem gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
 
       - name: Use local golangci config when present
         run: |
