@@ -35,6 +35,9 @@ jobs:
       - name: Testes de readiness (HTTP e HTTPS local)
         run: bash scripts/tests/wait-for-url/run.sh
 
+      - name: Testes de passos que mascaravam erro (cleanup usa GNU date do runner)
+        run: bash scripts/tests/masking/run.sh
+
   reusable-vuln-exceptions:
     # Chama o workflow reutilizavel com templates-ref = SHA deste commit: prova o caminho do input.
     permissions:

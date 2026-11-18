@@ -117,12 +117,16 @@ jobs:
 
           echo "Checking tag $TAG"
 
-          if existing=$(
-            gh api \
-              "repos/$REPOSITORY/git/ref/tags/$TAG" \
-              --jq '.object.sha' \
-              2>/dev/null
-          ); then
+          err="$(mktemp)"
+          if existing="$(gh api "repos/$REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha' 2>"$err")"; then
+            found=1
+          elif grep -q 'HTTP 404' "$err"; then
+            found=0
+          else
+            cat "$err" >&2; rm -f "$err"; exit 1
+          fi
+          rm -f "$err"
+          if [ "$found" = 1 ]; then
 
             if [ "$existing" != "$HEAD" ]; then
               echo "Tag $TAG already points to $existing" >&2

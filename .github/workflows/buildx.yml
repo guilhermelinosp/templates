@@ -42,7 +42,11 @@ jobs:
 
       - name: Setup buildx
         run: |
-          docker buildx create --name ci-builder --use 2>/dev/null || docker buildx use ci-builder
+          if docker buildx inspect ci-builder >/dev/null 2>&1; then
+            docker buildx use ci-builder
+          else
+            docker buildx create --name ci-builder --use
+          fi
 
       - name: Build and push
         env:

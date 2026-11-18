@@ -29,13 +29,24 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           BASE="$BASE_REF"
+          # a base precisa existir localmente: falha de fetch e erro, nao skip
+          # refspec completo: o curto (main:refs/remotes/...) nao cria a ref de rastreamento
+          git fetch --no-tags origin "refs/heads/$BASE:refs/remotes/origin/$BASE"
 
-          if ! git merge-base --is-ancestor "origin/$BASE" HEAD 2>/dev/null; then
-            echo "Base branch not found locally, skipping check"
+          set +e
+          git merge-base --is-ancestor "origin/$BASE" HEAD
+          anc_rc=$?
+          set -e
+          if [ "$anc_rc" -gt 1 ]; then
+            echo "::error::merge-base falhou (rc=$anc_rc)"
+            exit 1
+          fi
+          if [ "$anc_rc" -ne 0 ]; then
+            echo "::notice::branch nao contem origin/$BASE (base desatualizada); check de ancestralidade nao aplicado"
             exit 0
           fi
 
-          COMMITS=$(git log --oneline "origin/$BASE..HEAD" 2>/dev/null | wc -l)
+          COMMITS=$(git log --oneline "origin/$BASE..HEAD" | wc -l)
           echo "Commits to merge: $COMMITS"
 
       - name: Confirm base branch
@@ -51,14 +62,12 @@ jobs:
         run: |
           BASE="$BASE_REF"
 
-          MERGE_BASE=$(git merge-base "origin/$BASE" HEAD 2>/dev/null || echo "")
-          if [ -z "$MERGE_BASE" ]; then
-            echo "Could not determine merge base, skipping"
-            exit 0
-          fi
+          MERGE_BASE="$(git merge-base "origin/$BASE" HEAD)"
 
+          LOG="$(git log --format='%s' "$MERGE_BASE..HEAD")"
           ERRORS=0
           while IFS= read -r COMMIT; do
+            [ -n "$COMMIT" ] || continue
             if echo "$COMMIT" | grep -qE '^Initial plan$'; then
               continue
             fi
@@ -70,7 +79,7 @@ jobs:
               echo "Commit does not follow Conventional Commits: $COMMIT"
               ERRORS=$((ERRORS + 1))
             fi
-          done < <(git log --format='%s' "$MERGE_BASE..HEAD" 2>/dev/null)
+          done <<< "$LOG"
 
           if [ "$ERRORS" -gt 0 ]; then
             echo "$ERRORS commits do not follow Conventional Commits"

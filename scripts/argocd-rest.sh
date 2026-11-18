@@ -41,6 +41,7 @@ case "$ACTION" in
       phase="$(jq -r '.status.operationState.phase // "-"' <<<"$app")"
       sync="$(jq -r '.status.sync.status' <<<"$app")"
       health="$(jq -r '.status.health.status' <<<"$app")"
+      # sem live_image, cur fica "?" e a condicao de sucesso nao casa: o loop acaba em timeout (falha), nunca em sucesso falso
       cur="$(live_image 2>/dev/null || echo '?')"
       echo "fase=${phase} sync=${sync} saude=${health} imagem=${cur##*/}"
       if [ "$phase" != Running ] && [ "$sync" = Synced ] && [ "$health" = Healthy ] \
