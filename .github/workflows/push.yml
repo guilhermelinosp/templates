@@ -35,18 +35,24 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y skopeo
 
       - name: Login GHCR
+        env:
+          ACTOR: ${{ github.actor }}
         run: |
           TOKEN="${{ secrets.GHCR_PAT }}"
           if [ -z "$TOKEN" ]; then TOKEN="${{ secrets.GITHUB_TOKEN }}"; fi
-          echo "$TOKEN" | skopeo login ghcr.io -u ${{ github.actor }} --password-stdin
+          echo "$TOKEN" | skopeo login ghcr.io -u "$ACTOR" --password-stdin
 
       - name: Promote tags
+        env:
+          INPUT_IMAGE: ${{ inputs.image }}
+          REPO_FULL: ${{ github.repository }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          SRC="${{ inputs.image }}"
-          DST="ghcr.io/${{ github.repository }}"
+          SRC="$INPUT_IMAGE"
+          DST="ghcr.io/$REPO_FULL"
           skopeo copy "docker://${SRC}" "docker://${DST}:latest"
           skopeo copy "docker://${SRC}" "docker://${DST}:${GITHUB_SHA::7}"
-          TAG="${{ inputs.version }}"
+          TAG="$INPUT_VERSION"
           if [ -n "$TAG" ]; then
             skopeo copy "docker://${SRC}" "docker://${DST}:${TAG}"
           fi

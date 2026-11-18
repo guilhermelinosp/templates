@@ -35,11 +35,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Get PR diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          git diff origin/${{ github.base_ref }}..HEAD > /tmp/diff.txt
+          git diff "origin/$BASE_REF..HEAD" > /tmp/diff.txt
           echo "Diff lines: $(wc -l < /tmp/diff.txt)"
 
       - name: AI Code Review
@@ -85,9 +88,10 @@ jobs:
               BODY="${BASH_REMATCH[4]}"
 
               if [ -f "$FILE" ]; then
+                # best-effort: falha ao publicar um comentario nao deve interromper os demais
                 gh pr review "${{ github.event.pull_request.number }}" \
                   --comment \
-                  --body "**AI Review [$SEVERITY]:** $BODY" || true
+                  --body "**AI Review [$SEVERITY]:** $FILE:$LINE_NUM - $BODY" || true
               fi
             fi
           done < /tmp/ai-review.txt

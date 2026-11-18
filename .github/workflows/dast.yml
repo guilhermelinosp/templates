@@ -1,0 +1,84 @@
+name: dast
+
+# Orquestracao de DAST para uma URL ja no ar (sem criar infraestrutura de preview).
+# 1) espera o alvo responder; 2) roda o ZAP (zap.yml) e o Nuclei (nuclei.yml) contra ele.
+# Os scanners continuam nos seus proprios workflows: este arquivo so orquestra.
+# Inputs: target-url (obrigatorio), zap-scan-type (baseline|full|api), nuclei-severity, wait-timeout
+# Scripts (wait-for-url.sh) vem do repositorio templates na MESMA versao do workflow: passe
+# templates-ref com a mesma tag/SHA usada em 'uses:'. Nao ha default: evita depender de main.
+# Limitacao: os 'uses: ./.github/workflows/zap.yml' e nuclei.yml resolvem no repo chamador;
+# consumidores externos devem trocar por guilhermelinosp/templates/.github/workflows/<nome>.yml@<tag>.
+
+on:
+  workflow_call:
+    inputs:
+      target-url:
+        required: true
+        type: string
+      zap-scan-type:
+        required: false
+        default: "baseline"
+        type: string
+      nuclei-severity:
+        required: false
+        default: "medium,high,critical"
+        type: string
+      wait-timeout:
+        required: false
+        default: 300
+        type: number
+      target-ca-cert:
+        description: PEM da CA do alvo, se o certificado nao for de CA publica (usado so na espera)
+        required: false
+        default: ""
+        type: string
+      templates-ref:
+        description: Tag ou SHA de guilhermelinosp/templates que contem scripts/ (mesma versao do workflow chamado)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  wait-target:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dos templates (script de espera)
+        uses: actions/checkout@v4
+        with:
+          repository: guilhermelinosp/templates
+          ref: ${{ inputs.templates-ref }}
+          path: .templates
+          persist-credentials: false
+
+      - name: Esperar alvo responder
+        env:
+          TARGET_URL: ${{ inputs.target-url }}
+          WAIT_TIMEOUT: ${{ inputs.wait-timeout }}
+          TARGET_CA_CERT: ${{ inputs.target-ca-cert }}
+        run: |
+          if [ -n "$TARGET_CA_CERT" ]; then
+            printf '%s\n' "$TARGET_CA_CERT" > "$RUNNER_TEMP/target-ca.pem"
+            export CA_CERT_FILE="$RUNNER_TEMP/target-ca.pem"
+          fi
+          .templates/scripts/wait-for-url.sh "$TARGET_URL" "$WAIT_TIMEOUT"
+
+  zap:
+    needs: [wait-target]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/zap.yml
+    with:
+      target-url: ${{ inputs.target-url }}
+      scan-type: ${{ inputs.zap-scan-type }}
+
+  nuclei:
+    needs: [wait-target]
+    permissions:
+      contents: read
+      security-events: write
+    uses: ./.github/workflows/nuclei.yml
+    with:
+      target-url: ${{ inputs.target-url }}
+      severity: ${{ inputs.nuclei-severity }}

@@ -20,6 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Install osv-scanner
         run: |
@@ -29,10 +31,12 @@ jobs:
           sudo mv osv-scanner /usr/local/bin/
 
       - name: Run osv-scanner
+        env:
+          INPUT_DIR: ${{ inputs.dir }}
         run: |
           osv-scanner scan --recursive --format sarif \
             --output osv-results.sarif \
-            ${{ inputs.dir }} || true
+            "$INPUT_DIR" || true
 
       - name: Upload SARIF
         if: always()

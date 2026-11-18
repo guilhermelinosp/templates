@@ -1,0 +1,6 @@
+# Exceções de vulnerabilidade (lifecycle leve).
+# Cada entrada suprime UMA vulnerabilidade em UM escopo, com dono, motivo e data de expiração.
+# Entradas sem dono, motivo, escopo ou data válida FAZEM a validação falhar.
+# Entradas expiradas FAZEM a validação falhar: renove com justificativa ou corrija a causa.
+# Campos: id (CVE-/GHSA-/OSV-), scope (pacote, imagem ou arquivo afetado), reason, owner (@handle), expires (AAAA-MM-DD).
+exceptions: []

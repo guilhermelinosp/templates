@@ -28,6 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Install Helm
         uses: azure/setup-helm@v5
@@ -35,21 +37,28 @@ jobs:
           version: latest
 
       - name: Login to GHCR
+        env:
+          ACTOR: ${{ github.actor }}
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
-            -u ${{ github.actor }} --password-stdin
+            -u "$ACTOR" --password-stdin
 
       - name: Package chart
+        env:
+          INPUT_CHART_DIR: ${{ inputs.chart-dir }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          helm package ${{ inputs.chart-dir }} \
-            --version ${{ inputs.version }} \
+          helm package "$INPUT_CHART_DIR" \
+            --version "$INPUT_VERSION" \
             --destination /tmp/charts
 
       - name: Push chart
+        env:
+          INPUT_REGISTRY: ${{ inputs.registry }}
         run: |
-          CHART=$(ls /tmp/charts/*.tgz | head -1)
+          CHART=$(find /tmp/charts -maxdepth 1 -name '*.tgz' | head -1)
           if [ -z "$CHART" ]; then
             echo "No chart package found"
             exit 1
           fi
-          helm push "$CHART" ${{ inputs.registry }}
+          helm push "$CHART" "$INPUT_REGISTRY"

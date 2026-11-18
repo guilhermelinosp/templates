@@ -31,25 +31,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Login to GHCR
+        env:
+          ACTOR: ${{ github.actor }}
         run: |
           echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io \
-            -u ${{ github.actor }} --password-stdin
+            -u "$ACTOR" --password-stdin
 
       - name: List and delete old versions
         env:
           GH_TOKEN: ${{ secrets.GHCR_PAT }}
+          INPUT_DRY_RUN: ${{ inputs.dry-run }}
+          INPUT_DAYS_OLD: ${{ inputs.days-old }}
+          INPUT_PACKAGE_NAMES: ${{ inputs.package-names }}
+          REPO_OWNER: ${{ github.repository_owner }}
         run: |
-          DRY_RUN="${{ inputs.dry-run }}"
-          CUTOFF=$(date -d "-${{ inputs.days-old }} days" +%s)
+          DRY_RUN="$INPUT_DRY_RUN"
+          CUTOFF=$(date -d "-$INPUT_DAYS_OLD days" +%s)
 
-          for PKG in $(echo "${{ inputs.package-names }}" | tr ',' ' '); do
+          for PKG in $(echo "$INPUT_PACKAGE_NAMES" | tr ',' ' '); do
             echo "=== Processing package: $PKG ==="
 
             OWNER_TYPE="orgs"
             if gh api "/user" --jq '.type' 2>/dev/null | grep -q "User"; then
               OWNER_TYPE="users"
             fi
-            VERSIONS=$(gh api "/$OWNER_TYPE/${{ github.repository_owner }}/packages/container/$PKG/versions" \
+            VERSIONS=$(gh api "/$OWNER_TYPE/$REPO_OWNER/packages/container/$PKG/versions" \
               --jq '.[] | select(.metadata.container.tags | length > 0) | {id, tags: .metadata.container.tags, created_at}' 2>/dev/null)
 
             if [ -z "$VERSIONS" ]; then
@@ -66,7 +72,7 @@ jobs:
               if [ "$CREATED_TS" -lt "$CUTOFF" ]; then
                 echo "  🗑️  $TAGS (created $CREATED)"
                 if [ "$DRY_RUN" != "true" ]; then
-                  gh api --method DELETE "/orgs/${{ github.repository_owner }}/packages/container/$PKG/versions/$ID"
+                  gh api --method DELETE "/orgs/$REPO_OWNER/packages/container/$PKG/versions/$ID"
                 fi
               else
                 echo "  ✅ $TAGS (kept)"
@@ -75,8 +81,10 @@ jobs:
           done
 
       - name: Summary
+        env:
+          INPUT_DRY_RUN: ${{ inputs.dry-run }}
         run: |
-          if [ "${{ inputs.dry-run }}" = "true" ]; then
+          if [ "$INPUT_DRY_RUN" = "true" ]; then
             echo "⚠️  Dry-run mode — no packages deleted."
             echo "Set dry-run: false to actually delete."
           else

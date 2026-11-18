@@ -27,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Install conftest
         run: |
@@ -35,8 +37,12 @@ jobs:
           sudo mv conftest /usr/local/bin/
 
       - name: Run conftest
+        env:
+          INPUT_TARGET_DIR: ${{ inputs.target-dir }}
+          INPUT_POLICY_DIR: ${{ inputs.policy-dir }}
+          INPUT_POLICY_NAMESPACE: ${{ inputs.policy-namespace }}
         run: |
-          conftest test ${{ inputs.target-dir }} \
-            --policy ${{ inputs.policy-dir }} \
-            --namespace ${{ inputs.policy-namespace }} \
-            --all-namespaces || true
+          conftest test "$INPUT_TARGET_DIR" \
+            --policy "$INPUT_POLICY_DIR" \
+            --namespace "$INPUT_POLICY_NAMESPACE" \
+            --all-namespaces

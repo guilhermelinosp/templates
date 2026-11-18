@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: bad, namespace: app}
+spec:
+  template:
+    spec:
+      hostNetwork: true
+      containers:
+        - name: app
+          image: docker.io/library/nginx:latest
+          securityContext:
+            privileged: true
+            allowPrivilegeEscalation: true
+            capabilities: {add: [NET_ADMIN]}

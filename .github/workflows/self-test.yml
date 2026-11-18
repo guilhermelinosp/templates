@@ -1,0 +1,44 @@
+name: self-test
+
+# Testes dos scripts e dos workflows reutilizaveis em runner real.
+# Nao roda sozinho: dispare com `gh workflow run self-test.yml`.
+# Cobre o que o ambiente local nao cobre: runner ubuntu, yq do runner, openssl e node do runner.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  exceptions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Testes do validador de excecoes
+        run: bash scripts/tests/vuln-exceptions/run.sh
+
+      - name: Validar o arquivo real de excecoes
+        run: scripts/check-vuln-exceptions.sh security/vuln-exceptions.yml
+
+
+  readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Testes de readiness (HTTP e HTTPS local)
+        run: bash scripts/tests/wait-for-url/run.sh
+
+  reusable-vuln-exceptions:
+    # Chama o workflow reutilizavel com templates-ref = SHA deste commit: prova o caminho do input.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/vuln-exceptions.yml
+    with:
+      templates-ref: ${{ github.sha }}

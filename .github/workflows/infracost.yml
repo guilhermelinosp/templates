@@ -32,6 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Setup Infracost
         uses: infracost/actions/setup@v5
@@ -39,8 +41,10 @@ jobs:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
 
       - name: Generate cost estimate
+        env:
+          INPUT_PROJECT_PATH: ${{ inputs.project-path }}
         run: |
-          infracost breakdown --path ${{ inputs.project-path }} \
+          infracost breakdown --path "$INPUT_PROJECT_PATH" \
             --format json \
             --out-file /tmp/infracost.json
 

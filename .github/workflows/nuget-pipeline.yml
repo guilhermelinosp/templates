@@ -20,6 +20,8 @@ jobs:
       packages: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -46,7 +48,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7 # zizmor: ignore[artipacked] credenciais necessarias para push/tag neste job
         with:
           fetch-depth: 0
 
@@ -55,6 +57,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          # || true: com pipefail, head fecha o pipe cedo e git pode receber SIGPIPE; sem tags, LAST fica vazio
           LAST=$(git tag --sort=-version:refname | head -1 || true)
           if [ -z "$LAST" ]; then LAST=v1.0.0; fi
           IFS=. read -r MAJOR MINOR PATCH <<< "${LAST#v}"
@@ -80,6 +83,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -95,11 +100,14 @@ jobs:
       - name: Publish to GitHub Packages
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          ACTOR: ${{ github.actor }}
         run: |
-          OWNER="${{ github.repository_owner }}"
+          OWNER="$REPO_OWNER"
           SOURCE="https://nuget.pkg.github.com/$OWNER/index.json"
+          # idempotente: "add source" falha se a fonte ja existir (re-execucao); a publicacao abaixo valida as credenciais
           dotnet nuget add source github "$SOURCE" \
-            --username "${{ github.actor }}" \
+            --username "$ACTOR" \
             --password "$GH_TOKEN" \
             --store-password-in-clear-text || true
           dotnet nuget push ./artifacts/*.nupkg \
@@ -112,6 +120,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Create GitHub Release
         env:

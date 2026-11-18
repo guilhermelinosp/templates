@@ -28,33 +28,43 @@ jobs:
       DOCKER_CONFIG: /tmp/.docker
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Login GHCR
+        env:
+          ACTOR: ${{ github.actor }}
         run: |
           mkdir -p /tmp/.docker
           TOKEN="${{ secrets.GHCR_PAT }}"
           if [ -z "$TOKEN" ]; then TOKEN="${{ secrets.GITHUB_TOKEN }}"; fi
-          echo "$TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          echo "$TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
 
       - name: Setup buildx
         run: |
           docker buildx create --name ci-builder --use 2>/dev/null || docker buildx use ci-builder
 
       - name: Build and push
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
         run: |
-          IMG="ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}"
+          IMG="ghcr.io/$REPO_OWNER/$REPO_NAME"
           docker buildx build \
             --platform linux/amd64 \
             --push \
             --attest type=sbom \
             --attest type=provenance,mode=max \
-            --cache-from type=registry,ref=${IMG}:cache \
-            --cache-to type=registry,ref=${IMG}:cache,mode=max \
+            --cache-from "type=registry,ref=${IMG}:cache" \
+            --cache-to "type=registry,ref=${IMG}:cache,mode=max" \
             --metadata-file /tmp/metadata.json \
             -t "${IMG}:latest" .
 
       - name: Export digest
         id: export
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
         run: |
           DIGEST=$(jq -r '."containerimage.digest"' /tmp/metadata.json)
-          echo "image=ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}@${DIGEST}" >> $GITHUB_OUTPUT
+          echo "image=ghcr.io/$REPO_OWNER/$REPO_NAME@${DIGEST}" >> "$GITHUB_OUTPUT"

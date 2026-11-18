@@ -1,0 +1,6 @@
+exceptons:
+  - id: CVE-2024-12345
+    scope: golang.org/x/net
+    reason: Falso positivo confirmado; caminho vulneravel nao alcancado pelo template.
+    owner: "@guilhermelinosp"
+    expires: 2027-06-30

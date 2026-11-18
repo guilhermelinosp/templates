@@ -9,7 +9,8 @@ permissions:
 
 jobs:
   auto-merge:
-    if: github.actor == 'dependabot[bot]' && startsWith(github.event.pull_request.head.ref, 'dependabot/')
+    # 49699333 e o id numerico do dependabot[bot]; o nome do ator pode ser forjado, o id nao
+    if: github.event.pull_request.user.id == 49699333 && startsWith(github.event.pull_request.head.ref, 'dependabot/')
     runs-on: ubuntu-latest
     steps:
       - name: Fetch Dependabot metadata
@@ -24,6 +25,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr merge "${{ github.event.pull_request.number }}" \
-            --repo "${{ github.repository }}" \
+          gh pr merge "$EVENT_PR_NUMBER" \
+            --repo "$REPO_FULL" \
             --auto --squash
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_FULL: ${{ github.repository }}

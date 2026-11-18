@@ -22,31 +22,36 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Check merge strategy (--no-ff)
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          BASE="${{ github.base_ref }}"
-          HEAD="${{ github.head_ref }}"
+          BASE="$BASE_REF"
 
-          if ! git merge-base --is-ancestor origin/$BASE HEAD 2>/dev/null; then
+          if ! git merge-base --is-ancestor "origin/$BASE" HEAD 2>/dev/null; then
             echo "Base branch not found locally, skipping check"
             exit 0
           fi
 
-          COMMITS=$(git log --oneline origin/$BASE..HEAD 2>/dev/null | wc -l)
+          COMMITS=$(git log --oneline "origin/$BASE..HEAD" 2>/dev/null | wc -l)
           echo "Commits to merge: $COMMITS"
 
       - name: Confirm base branch
         if: github.base_ref == 'main'
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          echo "PR approved for ${{ github.base_ref }}"
+          echo "PR approved for $BASE_REF"
 
       - name: Conventional Commits check
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          BASE="${{ github.base_ref }}"
-          HEAD="${{ github.head_ref }}"
+          BASE="$BASE_REF"
 
-          MERGE_BASE=$(git merge-base origin/$BASE HEAD 2>/dev/null || echo "")
+          MERGE_BASE=$(git merge-base "origin/$BASE" HEAD 2>/dev/null || echo "")
           if [ -z "$MERGE_BASE" ]; then
             echo "Could not determine merge base, skipping"
             exit 0

@@ -32,6 +32,8 @@ jobs:
       aws-account-id: ${{ steps.identity.outputs.account-id }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Configure AWS credentials for Terraform
         uses: aws-actions/configure-aws-credentials@v6
@@ -42,10 +44,12 @@ jobs:
 
       - name: Verify identity
         id: identity
+        env:
+          INPUT_AWS_REGION: ${{ inputs.aws-region }}
         run: |
           ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-          echo "account-id=$ACCOUNT" >> $GITHUB_OUTPUT
-          echo "Authenticated: $ACCOUNT / ${{ inputs.aws-region }}"
+          echo "account-id=$ACCOUNT" >> "$GITHUB_OUTPUT"
+          echo "Authenticated: $ACCOUNT / $INPUT_AWS_REGION"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
@@ -53,9 +57,13 @@ jobs:
           terraform_version: latest
 
       - name: Terraform init
+        env:
+          INPUT_TERRAFORM_DIR: ${{ inputs.terraform-dir }}
         run: |
-          terraform -chdir=${{ inputs.terraform-dir }} init
+          terraform -chdir="$INPUT_TERRAFORM_DIR" init
 
       - name: Terraform validate
+        env:
+          INPUT_TERRAFORM_DIR: ${{ inputs.terraform-dir }}
         run: |
-          terraform -chdir=${{ inputs.terraform-dir }} validate
+          terraform -chdir="$INPUT_TERRAFORM_DIR" validate
