@@ -48,7 +48,7 @@ jobs:
           INPUT_AWS_REGION: ${{ inputs.aws-region }}
         run: |
           ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-          echo "account-id=$ACCOUNT" >> $GITHUB_OUTPUT
+          echo "account-id=$ACCOUNT" >> "$GITHUB_OUTPUT"
           echo "Authenticated: $ACCOUNT / $INPUT_AWS_REGION"
 
       - name: Setup Terraform

@@ -58,6 +58,13 @@ test_missing_memory_limit_fails if {
 	contains(msg, "resources.limits.memory")
 }
 
+# CronJob usa jobTemplate.spec.template.spec: privilegio deve ser detectado
+test_cronjob_privileged_fails if {
+	c := object.union(good_container, {"securityContext": object.union(good_container.securityContext, {"privileged": true})})
+	cj := {"kind": "CronJob", "metadata": {"name": "t", "namespace": "app"}, "spec": {"jobTemplate": {"spec": {"template": {"spec": {"containers": [c]}}}}}}
+	deny["container 'app' é privilegiado"] with input as cj
+}
+
 # hostNetwork no spec do pod deve falhar
 test_host_network_fails if {
 	p := object.union(pod(good_container), {"spec": object.union(pod(good_container).spec, {"hostNetwork": true})})

@@ -19,6 +19,7 @@ jobs:
           client-id: ${{ vars.HELLNET_ACTIONS_CLIENT_ID }}
           private-key: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
           permission-contents: write
           permission-issues: write
           permission-pull-requests: write

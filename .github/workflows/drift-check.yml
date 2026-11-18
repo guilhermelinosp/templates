@@ -23,7 +23,12 @@ jobs:
           repos="hellnet-lib-kafka hellnet-lib-cache golang-lib-template golang-api-template golang-worker-template golang-cli-template hellnet-lib-environments hellnet-lib-telemetry"
           status=0
           for r in $repos; do
-            cfg="$(curl -fsSL "https://raw.githubusercontent.com/guilhermelinosp/$r/main/.golangci.yml" 2>/dev/null || true)"
+            # falha ao obter o arquivo (repo ausente, sem acesso ou rede) e erro, nunca "drift"
+            if ! cfg="$(curl -fsSL "https://raw.githubusercontent.com/guilhermelinosp/$r/main/.golangci.yml")"; then
+              echo "::error::nao foi possivel obter .golangci.yml de $r (ausente, sem acesso ou falha de rede)"
+              status=1
+              continue
+            fi
             if [ "$cfg" != "$canonical" ]; then
               echo "::error::DRIFT detected in $r"
               status=1
@@ -32,7 +37,7 @@ jobs:
             fi
           done
           if [ "$status" -ne 0 ]; then
-            echo "Some repos have drifted from the canonical golangci config in ci-templates."
+            echo "Alguns repos divergiram do golangci canonico ou nao puderam ser verificados (veja os erros acima)."
             exit 1
           fi
           echo "All repos aligned with the canonical golangci config."

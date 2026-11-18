@@ -39,15 +39,41 @@ jobs:
           REPO_FULL: ${{ github.repository }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
-          set -eo pipefail
+          set -euo pipefail
           repo="$REPO_FULL"
           sha="$COMMIT_SHA"
-          files="$(gh api "repos/${repo}/git/trees/${sha}?recursive=1" --jq '.tree[].path' 2>/dev/null | grep -E '^\.github/workflows/.+\.ya?ml$' || true)"
-          [[ -z "${files}" ]] && echo "Sem workflows locais — OK" && exit 0
-          for f in ${files}; do
-            if gh api "repos/${repo}/contents/${f}?ref=${sha}" --jq '.content' | base64 -d | grep -qE 'uses: +guilhermelinosp/templates/[^@ ]+@(main|latest|master)([ $#]|$)'; then
+
+          # Qualquer falha da API, JSON invalido ou campo ausente interrompe o passo (exit != 0).
+          # Nunca vira lista vazia nem "sem violacao".
+          tree_json="$(gh api "repos/${repo}/git/trees/${sha}?recursive=1")"
+          truncated="$(jq -r '.truncated' <<< "$tree_json")"
+          if [[ "$truncated" != "false" ]]; then
+            echo "::error::arvore do commit incompleta (truncated=$truncated); a verificacao nao pode ser garantida"
+            exit 1
+          fi
+          paths="$(jq -r '.tree[].path' <<< "$tree_json")"
+
+          # grep sem resultado sai com 1 (nenhum workflow local). Outro codigo de saida interrompe.
+          set +e
+          files="$(grep -E '^\.github/workflows/.+\.ya?ml$' <<< "$paths")"
+          grep_rc=$?
+          set -e
+          if (( grep_rc > 1 )); then
+            echo "::error::falha ao filtrar os workflows (grep rc=$grep_rc)"
+            exit 1
+          fi
+          if [[ -z "$files" ]]; then
+            echo "Sem workflows locais — OK"
+            exit 0
+          fi
+
+          while IFS= read -r f; do
+            # '// error(...)' falha quando o campo nao existe: ausencia nunca vira conteudo vazio
+            content="$(gh api "repos/${repo}/contents/${f}?ref=${sha}" --jq '.content // error("resposta sem campo content")')"
+            decoded="$(base64 -d <<< "$content")"
+            if grep -qE 'uses: +guilhermelinosp/templates/[^@ ]+@(main|latest|master)([ $#]|$)' <<< "$decoded"; then
               echo "::error file=${f}::referência não imutável a guilhermelinosp/templates (use SHA 40-hex, nunca @main/@latest/@master)."
               exit 1
             fi
-          done
+          done <<< "$files"
           echo "Todos os pins do control plane são imutáveis — OK."

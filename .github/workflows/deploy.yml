@@ -47,10 +47,12 @@ jobs:
           version: latest
 
       - name: Setup kubeconfig
+        env:
+          KUBECONFIG_B64: ${{ secrets[inputs.kubeconfig-secret] }} # zizmor: ignore[overprovisioned-secrets] o nome do secret vem do input do chamador; a interface e mantida
         run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets[inputs.kubeconfig-secret] }}" | base64 -d > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
+          mkdir -p "$HOME/.kube"
+          printf '%s' "$KUBECONFIG_B64" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
 
       - name: Helm upgrade
         env:
@@ -63,12 +65,12 @@ jobs:
           RELEASE="$INPUT_RELEASE_NAME"
           CHART="$INPUT_CHART_DIR"
           NS="$INPUT_NAMESPACE"
-          ARGS=""
+          ARGS=()
           if [ -n "$INPUT_VALUES_FILE" ]; then
-            ARGS="$ARGS -f $INPUT_VALUES_FILE"
+            ARGS+=(-f "$INPUT_VALUES_FILE")
           fi
           if [ -n "$INPUT_IMAGE" ]; then
-            ARGS="$ARGS --set image.repository=$INPUT_IMAGE"
+            ARGS+=(--set "image.repository=$INPUT_IMAGE")
           fi
           helm upgrade --install "$RELEASE" \
             "$CHART" \
@@ -76,7 +78,7 @@ jobs:
             --create-namespace \
             --wait \
             --timeout 5m \
-            $ARGS
+            "${ARGS[@]}"
 
       - name: Verify rollout
         env:

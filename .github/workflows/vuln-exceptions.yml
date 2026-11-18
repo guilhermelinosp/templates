@@ -2,7 +2,7 @@ name: vuln-exceptions
 
 # Valida o arquivo de exceções de vulnerabilidade do repositório chamador.
 # Falha se houver exceção sem dono/motivo/escopo, com id genérico ou expirada.
-# Inputs: file (default: security/vuln-exceptions.yml)
+# Inputs: file (default: security/vuln-exceptions.yml); templates-ref (obrigatorio: tag ou SHA de templates com o validador)
 
 on:
   workflow_call:
@@ -10,6 +10,10 @@ on:
       file:
         required: false
         default: security/vuln-exceptions.yml
+        type: string
+      templates-ref:
+        description: Tag ou SHA de guilhermelinosp/templates que contem o validador (mesma versao do workflow chamado)
+        required: true
         type: string
 
 permissions:
@@ -28,7 +32,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: guilhermelinosp/templates
-          ref: main
+          ref: ${{ inputs.templates-ref }}
           path: .templates
           persist-credentials: false
 

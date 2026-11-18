@@ -78,4 +78,4 @@ jobs:
         run: |
           IMG="ghcr.io/$REPO_OWNER/$REPO_NAME"
           DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://${IMG}:${VERSION}")
-          echo "image=${IMG}@${DIGEST}" >> $GITHUB_OUTPUT
+          echo "image=${IMG}@${DIGEST}" >> "$GITHUB_OUTPUT"

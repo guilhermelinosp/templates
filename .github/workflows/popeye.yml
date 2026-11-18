@@ -23,14 +23,16 @@ jobs:
           persist-credentials: false
 
       - name: Setup kubeconfig
+        env:
+          KUBECONFIG_B64: ${{ secrets[inputs.kubeconfig-secret] }} # zizmor: ignore[overprovisioned-secrets] o nome do secret vem do input do chamador; a interface e mantida
         run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets[inputs.kubeconfig-secret] }}" | base64 -d > $HOME/.kube/config
+          mkdir -p "$HOME/.kube"
+          printf '%s' "$KUBECONFIG_B64" | base64 -d > "$HOME/.kube/config"
 
       - name: Run popeye
         run: |
           docker run --rm \
-            -v $HOME/.kube:/root/.kube \
+            -v "$HOME/.kube:/root/.kube" \
             derailed/popeye \
             --out /tmp/popeye.sarif \
             --output sarif

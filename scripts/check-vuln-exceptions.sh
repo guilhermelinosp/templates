@@ -25,6 +25,8 @@ fail() { echo "::error file=${FILE}::$1" >&2; ERRORS=$((ERRORS + 1)); }
 [[ -f "$FILE" ]] || { echo "arquivo nao encontrado: $FILE" >&2; exit 1; }
 command -v yq >/dev/null || { echo "yq ausente" >&2; exit 1; }
 
+KIND="$(yq '.exceptions | tag' "$FILE")"
+[[ "$KIND" == "!!seq" ]] || { echo "chave 'exceptions' ausente ou nao e uma lista em $FILE" >&2; exit 1; }
 COUNT="$(yq '.exceptions | length' "$FILE")"
 for ((i = 0; i < COUNT; i++)); do
   id="$(yq ".exceptions[$i].id // \"\"" "$FILE")"
@@ -36,7 +38,9 @@ for ((i = 0; i < COUNT; i++)); do
 
   [[ "$id" =~ ^(CVE-[0-9]{4}-[0-9]+|GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}|OSV-[A-Za-z0-9.-]+)$ ]] \
     || fail "exceção $n: id inválido ou genérico ('$id'); use CVE-, GHSA- ou OSV- específico"
-  [[ -n "$scope" && "$scope" != "*" ]] || fail "exceção $n ($id): escopo ausente ou genérico ('*'); informe pacote, imagem ou arquivo"
+  case "$scope" in
+    ''|'*'|'**'|'.'|'all') fail "exceção $n ($id): escopo ausente ou genérico ('$scope'); informe pacote, imagem ou arquivo" ;;
+  esac
   [[ ${#reason} -ge 10 ]] || fail "exceção $n ($id): motivo ausente ou curto demais"
   [[ "$owner" =~ ^@[A-Za-z0-9-]+$ ]] || fail "exceção $n ($id): owner deve ser um @handle"
   if ! valid_date "$expires"; then

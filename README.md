@@ -58,7 +58,7 @@ or release job merges its own PR.
 | `go-build.yml` | Go tidy, vet, lint (golangci-lint), build, test with cache |
 | `go-quality.yml` | All-in-one PR gate: module integrity, vet, extra checks, race tests + coverage artifact, canonical-config lint, build, smoke |
 | `govulncheck.yml` | stdlib vulnerability scan with call-graph reachability |
-| `goreleaser-publish.yml` | Publish cross-platform binaries onto the release created by `release.yml` |
+| `goreleaser-publish.yml` | Publish cross-platform binaries onto the release created by `release.yml`. A config do GoReleaser é buscada de `ci-templates` (branch `main`) |
 | _CodeQL_ | kept **per-repo** (inline) — reusable variant triggers GitHub validation quirks across callers; see golang-cli/golang-api templates for the canonical copy |
 
 ### Node.js
@@ -130,7 +130,7 @@ or release job merges its own PR.
 |---|---|
 | `zap.yml` | OWASP ZAP baseline/full scan |
 | `nuclei.yml` | ProjectDiscovery nuclei vulnerability scanner |
-| `dast.yml` | Orquestra ZAP e Nuclei contra uma `target-url` já no ar: espera o alvo responder (`scripts/wait-for-url.sh`) e depois roda os dois. Sem infraestrutura de preview; a limpeza fica com quem subiu o alvo |
+| `dast.yml` | Orquestra ZAP e Nuclei contra uma `target-url` já no ar. Espera o alvo responder (`scripts/wait-for-url.sh`, TLS validado; `target-ca-cert` para CA própria) e roda os dois scanners. Exige `templates-ref`. Sem infraestrutura de preview |
 
 #### Supply Chain
 
@@ -163,6 +163,8 @@ or release job merges its own PR.
 
 Nota: o `zap.yml` não aceita mais limiar de severidade. O gate é o `fail_action: true` do scanner, que não é configurável por input.
 
+Nota: o `nuclei.yml` não tem gate verificado. Os achados sobem em SARIF para o Code Scanning e não reprovam o job; não confirmei no action pinado se existe opção de falha por severidade.
+
 
 Classificação pelo que o YAML faz (não pelo que o action faz por padrão):
 
@@ -171,11 +173,24 @@ Classificação pelo que o YAML faz (não pelo que o action faz por padrão):
 - **Não classificado**: `codeql`, `semgrep`, `gosec`, `nuclei`, `gitleaks`, `trufflehog`, `scorecard`. O comportamento depende da configuração padrão de cada action; confirme no GitHub antes de contar com eles como barreira.
 
 #### Verificação local
+- Compliance do `branch-rules.yml`: `scripts/tests/branch-rules/run.sh` (15 cenários com `gh` falso: violação, erro HTTP, JSON inválido, árvore truncada, campo ausente, base64 inválido; sucesso só com consulta válida sem violação). Requer ruby e jq.
+- Readiness: `scripts/tests/wait-for-url/run.sh` (8 casos: HTTP, HTTPS autoassinado com e sem CA, TLS nunca vira pronto; usa node e openssl locais).
 
-- Exceções de vulnerabilidade: `scripts/tests/vuln-exceptions/run.sh` (testes) e `scripts/check-vuln-exceptions.sh security/vuln-exceptions.yml` (arquivo real). Workflow reutilizável: `vuln-exceptions.yml`.
-- Políticas Kubernetes (Conftest/Rego, `policy/kubernetes/security.rego`): `conftest verify --policy policy/kubernetes` roda os testes unitários; `conftest test <manifesto.yaml> --policy policy/kubernetes --namespace kubernetes` avalia um manifesto. O workflow `conftest.yml` deve receber `policy-dir: ./policy/kubernetes` e `target-dir` apontando só para os manifestos (o padrão `.` varre todo o repositório).
+- Exceções de vulnerabilidade: `scripts/tests/vuln-exceptions/run.sh` (8 casos: válidos passam; expirada, sem dono, escopo genérico, data inválida, chave com typo, arquivo vazio e escopo `all` falham) e `scripts/check-vuln-exceptions.sh security/vuln-exceptions.yml` (arquivo real). Nenhum workflow do repositório executa esses testes: rode-os antes de alterar o validador. Workflow reutilizável: `vuln-exceptions.yml`.
+- Políticas Kubernetes (Conftest/Rego, `policy/kubernetes/security.rego`): `conftest verify --policy policy/kubernetes` roda os testes unitários (8 casos, incluindo CronJob); `conftest test <manifesto.yaml> --policy policy/kubernetes --namespace kubernetes` avalia um manifesto. Cobre Pod, Deployment, StatefulSet, DaemonSet, ReplicaSet, Job e CronJob. `policy/kubernetes/testdata/invalid-deployment.yaml` é fixture inválido de propósito.
 - Workflows: `actionlint .github/workflows/*.yml` e `zizmor --config .github/zizmor.yml .github/workflows/`. O zizmor desliga só `unpinned-uses`, por preferência de tags em vez de SHA.
-- Política Kyverno de imagens (`policy/kyverno/verify-images.yaml`, tipo `ImageValidatingPolicy`): `kubectl apply --dry-run=server -f policy/kyverno/verify-images.yaml` valida o schema no cluster sem criar nada. A regra de digest pode ser testada com `kyverno apply`. A verificação de assinatura consulta o registry, então depende de rede e de uma imagem realmente assinada pelo workflow `cosign.yml`. Sem isso, o resultado é inconclusivo.
+- Política Kyverno de imagens (`policy/kyverno/verify-images.yaml`, tipo `ImageValidatingPolicy`): `kubectl apply --dry-run=server -f policy/kyverno/verify-images.yaml` valida o schema e o CEL no cluster sem criar nada. `kyverno apply policy/kyverno/verify-images.yaml --resource <pod.yaml>` testa offline a regra de digest (tag mutável é negada). A regra de assinatura não é verificada offline: retorna `error` sem detalhe quando o registry não responde.
+
+#### Limitações conhecidas e requisitos externos
+
+- **Workflows não executados no GitHub Actions.** As validações são locais: YAML, actionlint, zizmor, conftest, testes do validador de exceções e dry-run do Kyverno.
+- **Assinatura Cosign não verificada de ponta a ponta.** Exige uma imagem assinada pelo `cosign.yml` e acesso de leitura ao `ghcr.io`.
+- **Scripts vêm do `templates-ref`.** `dast.yml` e `vuln-exceptions.yml` exigem `templates-ref` (tag ou SHA do repositório templates). Passe a mesma versão usada em `uses:`. Não há checagem automática de que as duas coincidem.
+- **Actions por tag, não por SHA.** Por decisão do mantenedor; o zizmor desliga só `unpinned-uses`. Alguns workflows herdados já usam SHA, então a convenção não é uniforme.
+- **`self-repository` (baixa):** o zizmor sugere `$/` em vez de `./` nas chamadas locais. Não confirmei essa sintaxe no GitHub; mantive `./`.
+- **Testes que só rodam no GitHub Actions:** `self-test.yml` (manual, `gh workflow run self-test.yml`) roda exceções, readiness e a chamada real do workflow de exceções. Não foi executado ainda. Publicação NuGet, artifacts do ZAP, DAST contra alvo real e verificação de assinatura Kyverno exigem secrets, registry ou alvo próprio e não estão cobertos.
+- **Relatórios de DAST.** ZAP publica relatórios como artifact (sem SARIF). Nuclei envia SARIF e não tem gate verificado. A CA de `target-ca-cert` vale só para a espera: os scanners validam o certificado por conta própria.
+- **`goreleaser-publish.yml`:** zizmor sem achados neste arquivo. A config do GoReleaser vem de `ci-templates@main` (implícito, mantido por ser comportamento de publicação).
 
 ### FinOps
 
@@ -283,7 +298,7 @@ jobs:
 
 - **No self-hosted runners** — all workflows run on `ubuntu-latest`
 - **Least privilege** — minimal `permissions:` on every workflow
-- **SARIF everywhere** — security tools output SARIF for GitHub Security tab
+- **SARIF quando a ferramenta suporta** — ex.: trivy e nuclei enviam SARIF ao Code Scanning. O ZAP não gera SARIF: publica relatórios como artifact do próprio action.
 - **Conventional Commits** — semver bump depends on commit messages
 - **Reusable** — opt-in workflows are `workflow_call` for composition
 - **Safe writes** — bot writes use the `hellnet-actions` installation token; `GITHUB_TOKEN` remains read-only where possible

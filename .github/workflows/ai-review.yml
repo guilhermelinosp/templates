@@ -88,9 +88,10 @@ jobs:
               BODY="${BASH_REMATCH[4]}"
 
               if [ -f "$FILE" ]; then
+                # best-effort: falha ao publicar um comentario nao deve interromper os demais
                 gh pr review "${{ github.event.pull_request.number }}" \
                   --comment \
-                  --body "**AI Review [$SEVERITY]:** $BODY" || true
+                  --body "**AI Review [$SEVERITY]:** $FILE:$LINE_NUM - $BODY" || true
               fi
             fi
           done < /tmp/ai-review.txt

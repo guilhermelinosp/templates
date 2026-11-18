@@ -56,7 +56,7 @@ jobs:
         env:
           INPUT_REGISTRY: ${{ inputs.registry }}
         run: |
-          CHART=$(ls /tmp/charts/*.tgz | head -1)
+          CHART=$(find /tmp/charts -maxdepth 1 -name '*.tgz' | head -1)
           if [ -z "$CHART" ]; then
             echo "No chart package found"
             exit 1

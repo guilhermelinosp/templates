@@ -34,6 +34,7 @@ jobs:
           client-id: ${{ inputs.app-id || inputs.app-client-id }}
           private-key: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
           permission-pull-requests: write
 
       - uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13

@@ -32,13 +32,13 @@ jobs:
           INPUT_CONFIG_FILE: ${{ inputs.config-file }}
           INPUT_VERSION: ${{ inputs.version }}
         run: |
-          CONFIG=""
+          CONFIG=()
           if [ -n "$INPUT_CONFIG_FILE" ]; then
-            CONFIG="-v $INPUT_CONFIG_FILE:/etc/kube-bench/cfg/config.yaml"
+            CONFIG=(-v "$INPUT_CONFIG_FILE:/etc/kube-bench/cfg/config.yaml")
           fi
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            $CONFIG \
+            "${CONFIG[@]}" \
             aquasec/kube-bench:"$INPUT_VERSION" \
             run \
             --exitcode 1 \

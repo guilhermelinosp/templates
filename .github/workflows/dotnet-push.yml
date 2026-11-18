@@ -48,7 +48,7 @@ jobs:
           if [ -z "$VERSION" ]; then
             VERSION=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' | head -1 | sed 's/^v//' || echo "0.0.0")
           fi
-          [ -n "$SLN" ] && dotnet pack "$SLN" --configuration Release --output ./artifacts -p:Version=$VERSION
+          [ -n "$SLN" ] && dotnet pack "$SLN" --configuration Release --output ./artifacts "-p:Version=$VERSION"
 
       - name: Publish to GitHub Packages
         env:

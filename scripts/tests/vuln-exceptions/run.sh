@@ -15,5 +15,8 @@ expect expired.yml fail
 expect no-owner.yml fail
 expect blanket.yml fail
 expect bad-date.yml fail
+expect typo-key.yml fail
+expect empty.yml fail
+expect scope-all.yml fail
 echo "resumo: $pass ok, $failn falha(s)"
 [[ $failn -eq 0 ]]

@@ -57,6 +57,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          # || true: com pipefail, head fecha o pipe cedo e git pode receber SIGPIPE; sem tags, LAST fica vazio
           LAST=$(git tag --sort=-version:refname | head -1 || true)
           if [ -z "$LAST" ]; then LAST=v1.0.0; fi
           IFS=. read -r MAJOR MINOR PATCH <<< "${LAST#v}"
@@ -104,6 +105,7 @@ jobs:
         run: |
           OWNER="$REPO_OWNER"
           SOURCE="https://nuget.pkg.github.com/$OWNER/index.json"
+          # idempotente: "add source" falha se a fonte ja existir (re-execucao); a publicacao abaixo valida as credenciais
           dotnet nuget add source github "$SOURCE" \
             --username "$ACTOR" \
             --password "$GH_TOKEN" \

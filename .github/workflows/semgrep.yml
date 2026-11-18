@@ -37,11 +37,12 @@ jobs:
           INPUT_CONFIG: ${{ inputs.config }}
         run: |
           pip install --quiet --break-system-packages semgrep
-          severity_args=""
-          for s in $(echo "$INPUT_SEVERITY" | tr ',' ' '); do
-            severity_args="$severity_args --severity $s"
+          read -ra severities <<< "${INPUT_SEVERITY//,/ }"
+          severity_args=()
+          for s in "${severities[@]}"; do
+            severity_args+=(--severity "$s")
           done
-          semgrep --config "$INPUT_CONFIG" $severity_args --exclude .github --sarif-output semgrep.sarif
+          semgrep --config "$INPUT_CONFIG" "${severity_args[@]}" --exclude .github --sarif-output semgrep.sarif
 
       - name: Upload SARIF
         if: always()

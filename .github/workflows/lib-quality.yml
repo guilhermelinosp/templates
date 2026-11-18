@@ -89,7 +89,7 @@ jobs:
           if git status --porcelain -- go.mod go.sum | grep -q .; then
             echo "::error::go.mod/go.sum out of sync —" \
               "run 'go mod tidy' and commit"
-            git diff -- go.mod go.sum || true
+            git diff -- go.mod go.sum
             exit 1
           fi
 
@@ -100,7 +100,9 @@ jobs:
         if: inputs.extra-commands != ''
         env:
           EXTRA_COMMANDS: ${{ inputs.extra-commands }}
-        run: eval "$EXTRA_COMMANDS"
+        run: |
+          printf '%s\n' "$EXTRA_COMMANDS" > "$RUNNER_TEMP/extra-commands.sh"
+          bash -eo pipefail "$RUNNER_TEMP/extra-commands.sh"
 
       - name: Test with coverage (race)
         run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
@@ -128,7 +130,9 @@ jobs:
       - name: Build
         env:
           BUILD_COMMAND: ${{ inputs.build-command }}
-        run: eval "$BUILD_COMMAND"
+        run: |
+          printf '%s\n' "$BUILD_COMMAND" > "$RUNNER_TEMP/build-command.sh"
+          bash -eo pipefail "$RUNNER_TEMP/build-command.sh"
 
       - name: Govulncheck
         env:

@@ -24,8 +24,8 @@ jobs:
 
       - name: Detect solution
         run: |
-          SLN=$(ls *.slnx *.sln 2>/dev/null | head -1 || echo "")
-          echo "SLN=$SLN" >> $GITHUB_ENV
+          SLN=$(find . -maxdepth 1 -type f \( -name '*.slnx' -o -name '*.sln' \) -printf '%f\n' | sort | head -1)
+          echo "SLN=$SLN" >> "$GITHUB_ENV"
 
       - name: Restore
         run: |

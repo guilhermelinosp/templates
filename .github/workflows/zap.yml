@@ -17,7 +17,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   scan:
@@ -57,8 +56,3 @@ jobs:
           issue_title: "ZAP Scan Report"
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: zap-${{ inputs.scan-type }}.sarif

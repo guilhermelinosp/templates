@@ -12,9 +12,8 @@ exempt_namespaces := {}
 trusted_image_prefixes := ["ghcr.io/guilhermelinosp/"]
 
 pod_spec := input.spec if input.kind == "Pod"
-pod_spec := input.spec.template.spec if input.kind == "Deployment"
-pod_spec := input.spec.template.spec if input.kind == "StatefulSet"
-pod_spec := input.spec.template.spec if input.kind == "DaemonSet"
+pod_spec := input.spec.template.spec if input.kind in {"Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "Job"}
+pod_spec := input.spec.jobTemplate.spec.template.spec if input.kind == "CronJob"
 
 workload_ns := object.get(input.metadata, "namespace", "default")
 
