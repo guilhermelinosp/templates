@@ -1,0 +1,57 @@
+---
+# Config global compartilhada (substitui .goreleaser.yaml nos repos).
+# Uso: ~/.config/goreleaser/gr build --snapshot --clean --single-target
+# Env: GORELEASER_MAIN (ex.: ./cmd/api) e GORELEASER_BINARY, definidas pelo wrapper `gr`.
+version: 2
+
+before:
+  hooks:
+    - go mod verify
+
+builds:
+  - id: app
+    main: "{{ .Env.GORELEASER_MAIN }}"
+    binary: "{{ .Env.GORELEASER_BINARY }}"
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.FullCommit}}
+      - -X main.date={{.Date}}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+release:
+  # O release e criado pelo workflow `release`; o GoReleaser so anexa artefatos.
+  draft: false
+  mode: keep-existing
