@@ -33,8 +33,9 @@ jobs:
       - name: Login to GHCR
         env:
           ACTOR: ${{ github.actor }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
         run: |
-          echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io \
+          printf '%s' "$GHCR_PAT" | docker login ghcr.io \
             -u "$ACTOR" --password-stdin
 
       - name: List and delete old versions
@@ -58,7 +59,7 @@ jobs:
               OWNER_TYPE="users"
             fi
             VERS_ERR="$(mktemp)"
-            if VERSIONS="$(gh api "/$OWNER_TYPE/$REPO_OWNER/packages/container/$PKG/versions" \
+            if VERSIONS="$(gh api --paginate "/$OWNER_TYPE/$REPO_OWNER/packages/container/$PKG/versions" \
               --jq '.[] | select(.metadata.container.tags | length > 0) | {id, tags: .metadata.container.tags, created_at}' 2>"$VERS_ERR")"; then
               :
             elif grep -q 'HTTP 404' "$VERS_ERR"; then
@@ -84,7 +85,7 @@ jobs:
               if [ "$CREATED_TS" -lt "$CUTOFF" ]; then
                 echo "  🗑️  $TAGS (created $CREATED)"
                 if [ "$DRY_RUN" != "true" ]; then
-                  gh api --method DELETE "/orgs/$REPO_OWNER/packages/container/$PKG/versions/$ID"
+                  gh api --method DELETE "/$OWNER_TYPE/$REPO_OWNER/packages/container/$PKG/versions/$ID"
                 fi
               else
                 echo "  ✅ $TAGS (kept)"

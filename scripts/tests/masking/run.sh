@@ -20,13 +20,13 @@ echo "$*" >> "$CALLS"
 jqx=""; args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do [[ "${args[$i]}" == --jq ]] && jqx="${args[$((i + 1))]}"; done
 emit() { if [[ -n "$jqx" ]]; then jq -r "$jqx"; else cat; fi; }
-p="${2:-}"
+p=""; for x in "$@"; do [[ "$x" == /* || "$x" == repos/* ]] && { p="$x"; break; }; done
 case "$*" in *"--method POST"*|*"-X POST"*|*"-X PATCH"*) echo '{}'; exit 0 ;; esac
 case "$*" in *"--method DELETE"*) echo '{}'; exit 0 ;; esac
 case "$p" in
   /user)
     [[ "${GH_USER_MODE:-ok}" == fail ]] && { echo "HTTP 500: falha simulada" >&2; exit 1; }
-    echo '{"type":"Organization"}' | emit ;;
+    if [[ "${GH_USER_MODE:-ok}" == user ]]; then echo '{"type":"User"}' | emit; else echo '{"type":"Organization"}' | emit; fi ;;
   */versions*)
     case "${GH_VERS_MODE:-ok}" in
       404) echo "HTTP 404: Not Found" >&2; exit 1 ;;
@@ -73,6 +73,7 @@ check() {
   out="$("$@" 2>&1)"; rc=$?
   post=$(grep -c 'POST\|PATCH' "$CALLS" || true)
   del=$(grep -c 'DELETE' "$CALLS" || true)
+  usersdel=$(grep -c 'DELETE.*/users/' "$CALLS" || true)
   : > "$CALLS"
   local okrc=0 okrule=1
   case "$want" in ok) [[ $rc -eq 0 ]] && okrc=1 ;; err) [[ $rc -ne 0 ]] && okrc=1 ;; esac
@@ -82,6 +83,7 @@ check() {
     has-post) [[ $post -gt 0 ]] || okrule=0 ;;
     no-delete) [[ $del -eq 0 ]] || okrule=0 ;;
     has-delete) [[ $del -gt 0 ]] || okrule=0 ;;
+    has-delete-users) [[ $usersdel -gt 0 ]] || okrule=0 ;;
   esac
   if [[ $okrc -eq 1 && $okrule -eq 1 ]]; then
     pass=$((pass + 1)); echo "PASS [$name] rc=$rc post=$post delete=$del"
@@ -105,6 +107,7 @@ if date -d "-1 day" +%s >/dev/null 2>&1; then
   check "cleanup: versao antiga em dry-run nao apaga" ok no-delete cl GH_VERS_JSON="$OLD" INPUT_DRY_RUN=true
   check "cleanup: versao recente e mantida" ok no-delete cl GH_VERS_JSON="$NEW" INPUT_DRY_RUN=false
   check "cleanup: versao antiga fora de dry-run apaga (controle positivo)" ok has-delete cl GH_VERS_JSON="$OLD" INPUT_DRY_RUN=false
+  check "cleanup: conta pessoal apaga pelo endpoint /users" ok has-delete-users cl GH_USER_MODE=user GH_VERS_JSON="$OLD" INPUT_DRY_RUN=false
 else
   skip "scheduled-cleanup" "requer GNU date (roda no runner Linux)"
 fi
