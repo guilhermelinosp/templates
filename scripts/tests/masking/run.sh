@@ -141,19 +141,6 @@ check "merge-check: fetch da base falha = erro" err none mcrun "$WORK/mc1.sh"
 ( cd "$MC" && "$REAL_GIT" remote set-url origin "$WORK/origin.git" && "$REAL_GIT" -c user.name=t -c user.email=t@t -c commit.gpgsign=false commit -q --allow-empty -m "wip: sem padrao" )
 check "merge-check: commit fora do padrao reprova" err none mcrun "$WORK/mc2.sh"
 
-# ---------- nuget-tag ----------
-NT="$WORK/nt"; mkdir -p "$NT"; ( cd "$NT" && "$REAL_GIT" init -q && "$REAL_GIT" -c user.name=t -c user.email=t@t -c commit.gpgsign=false commit -q --allow-empty -m "chore: init" && "$REAL_GIT" -c tag.gpgsign=false tag v1.0.0 || exit 1 )
-extract "$WF/nuget-tag.yml" "Bump version" "$WORK/nt.sh"
-ntrun() { (cd "$NT" && env PATH="$WORK/bin:$PATH" GITHUB_OUTPUT="$WORK/nt-out" bash -eo pipefail "$WORK/nt.sh"); }
-ntc() { ( cd "$NT" && "$REAL_GIT" -c user.name=t -c user.email=t@t -c commit.gpgsign=false commit -q --allow-empty -m "$1" ); }
-saida_tag() { if grep -qx "tag=$1" "$WORK/nt-out"; then pass=$((pass + 1)); echo "PASS [nuget-tag: saida tag=$1]"; else failn=$((failn + 1)); echo "FAIL [nuget-tag: saida esperada tag=$1, obtido: $(cat "$WORK/nt-out")]"; fi; }
-ntc "fix: corrige"; : > "$WORK/nt-out"
-check "nuget-tag: fix gera patch" ok none ntrun; saida_tag "v1.0.1"
-ntc "feat: nova"; : > "$WORK/nt-out"
-check "nuget-tag: feat gera minor" ok none ntrun; saida_tag "v1.1.0"
-( cd "$NT" && env PATH="$WORK/bin:$PATH" NT_FAIL_LOG=1 GITHUB_OUTPUT="$WORK/nt-out2" bash -eo pipefail "$WORK/nt.sh" ) >/dev/null 2>&1; rcf=$?
-if [[ $rcf -ne 0 ]]; then pass=$((pass + 1)); echo "PASS [nuget-tag: git log falhando interrompe o passo] rc=$rcf"; else failn=$((failn + 1)); echo "FAIL [nuget-tag: git log falhando] rc=0"; fi
-
 # ---------- kube-resource ----------
 extract "$WF/kube-resource.yml" "Check K8s resource requests/limits" "$WORK/kube.sh"
 KD="$WORK/k8s"; mkdir -p "$KD"

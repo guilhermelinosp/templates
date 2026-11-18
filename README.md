@@ -2,7 +2,7 @@
 
 > Central App-authenticated CI/CD rules and migration guidance: [CI-CONTROL-PLANE.md](CI-CONTROL-PLANE.md)
 
-Reusable GitHub Actions workflows for .NET, Go, containers, Kubernetes, Terraform, AWS, DevSecOps, FinOps, and SRE.
+Reusable GitHub Actions workflows for Go, containers, Kubernetes, Terraform, AWS, DevSecOps, FinOps, and SRE.
 
 All workflows run on **ubuntu-latest** (GitHub-hosted runners).
 
@@ -11,7 +11,7 @@ All workflows run on **ubuntu-latest** (GitHub-hosted runners).
 ```yaml
 jobs:
   build:
-    uses: guilhermelinosp/templates/.github/workflows/dotnet-build.yml@latest
+    uses: guilhermelinosp/templates/.github/workflows/go-build.yml@latest
 ```
 
 Consumers call the reusable workflows at `@latest` (a tag that the `latest` workflow
@@ -38,18 +38,6 @@ Automation PRs are authored by `octo-sts[bot]`; no workflow or release job merge
 ---
 
 ## Workflows
-
-### .NET
-
-| Workflow | Description |
-|---|---|
-| `dotnet-build.yml` | Restore, build, test .NET solution |
-| `dotnet-push.yml` | Pack, publish NuGet to GitHub Packages + NuGet.org, create release |
-| `nuget-build.yml` | Restore, build, test (simplified, no version input) |
-| `nuget-publish.yml` | Pack, publish NuGet to GitHub Packages + NuGet.org |
-| `nuget-tag.yml` | Semver bump from conventional commits + git tag |
-| `nuget-release.yml` | Create GitHub release from tag |
-| `nuget-pipeline.yml` | Orchestration: build → tag → publish → release |
 
 ### Go
 
@@ -173,7 +161,6 @@ Classificação pelo que o YAML faz (não pelo que o action faz por padrão):
 - **Não classificado**: `codeql`, `semgrep`, `gosec`, `nuclei`, `gitleaks`, `trufflehog`, `scorecard`. O comportamento depende da configuração padrão de cada action; confirme no GitHub antes de contar com eles como barreira.
 
 #### Verificação local
-- Compliance do `branch-rules.yml`: `scripts/tests/branch-rules/run.sh` (15 cenários com `gh` falso: violação, erro HTTP, JSON inválido, árvore truncada, campo ausente, base64 inválido; sucesso só com consulta válida sem violação). Requer ruby e jq.
 - Readiness: `scripts/tests/wait-for-url/run.sh` (8 casos: HTTP, HTTPS autoassinado com e sem CA, TLS nunca vira pronto; usa node e openssl locais).
 
 - Exceções de vulnerabilidade: `scripts/tests/vuln-exceptions/run.sh` (8 casos: válidos passam; expirada, sem dono, escopo genérico, data inválida, chave com typo, arquivo vazio e escopo `all` falham) e `scripts/check-vuln-exceptions.sh security/vuln-exceptions.yml` (arquivo real). Nenhum workflow do repositório executa esses testes: rode-os antes de alterar o validador. Workflow reutilizável: `vuln-exceptions.yml`.
@@ -183,12 +170,12 @@ Classificação pelo que o YAML faz (não pelo que o action faz por padrão):
 
 #### Limitações conhecidas e requisitos externos
 
-- **Verificações em runner real.** `self-test.yml` (manual, `workflow_dispatch`) roda exceções, readiness, o validador por workflow reutilizável e os testes do passo de compliance. Os demais workflows são validados localmente (YAML, actionlint, zizmor, conftest, dry-run do Kyverno) e em PRs. Publicação NuGet, DAST contra alvo real e verificação de assinatura Kyverno ainda não foram executados.
+- **Verificações em runner real.** `self-test.yml` (manual, `workflow_dispatch`) roda exceções, readiness, o validador por workflow reutilizável, e os testes de passos que mascaravam erro (`scripts/tests/masking`). Os demais workflows são validados localmente (YAML, actionlint, zizmor, conftest, dry-run do Kyverno) e em PRs. DAST contra alvo real e verificação de assinatura Kyverno ainda não foram executados.
 - **Assinatura Cosign não verificada de ponta a ponta.** Exige uma imagem assinada pelo `cosign.yml` e acesso de leitura ao `ghcr.io`.
 - **Scripts vêm do `templates-ref`.** `dast.yml` e `vuln-exceptions.yml` exigem `templates-ref` (tag ou SHA do repositório templates). Passe a mesma versão usada em `uses:`. Não há checagem automática de que as duas coincidem.
 - **Actions por tag, não por SHA.** Por decisão do mantenedor; o zizmor desliga só `unpinned-uses`. Alguns workflows herdados já usam SHA, então a convenção não é uniforme.
 - **`self-repository` (baixa):** o zizmor sugere `$/` em vez de `./` nas chamadas locais. O actionlint rejeita `$/` como formato inválido de referência, então `./` é a única forma aceita. Os três pontos têm `zizmor: ignore` com esse motivo.
-- **Testes que só rodam no GitHub Actions:** `self-test.yml` (manual, `gh workflow run self-test.yml`) roda exceções, readiness e a chamada real do workflow de exceções. Não foi executado ainda. Publicação NuGet, artifacts do ZAP, DAST contra alvo real e verificação de assinatura Kyverno exigem secrets, registry ou alvo próprio e não estão cobertos.
+- **Testes que só rodam no GitHub Actions:** `self-test.yml` (manual, `gh workflow run self-test.yml`) roda exceções, readiness e a chamada real do workflow de exceções. Não foi executado ainda. Artifacts do ZAP, DAST contra alvo real e verificação de assinatura Kyverno exigem secrets, registry ou alvo próprio e não estão cobertos.
 - **Relatórios de DAST.** ZAP publica relatórios como artifact (sem SARIF). Nuclei envia SARIF e não tem gate verificado. A CA de `target-ca-cert` vale só para a espera: os scanners validam o certificado por conta própria.
 - **`goreleaser-publish.yml`:** zizmor sem achados neste arquivo. A config do GoReleaser vem de `ci-templates@main` (implícito, mantido por ser comportamento de publicação).
 
