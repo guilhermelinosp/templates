@@ -20,7 +20,7 @@ echo "$*" >> "$CALLS"
 jqx=""; args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do [[ "${args[$i]}" == --jq ]] && jqx="${args[$((i + 1))]}"; done
 emit() { if [[ -n "$jqx" ]]; then jq -r "$jqx"; else cat; fi; }
-p="${2:-}"
+p=""; for x in "$@"; do [[ "$x" == /* || "$x" == repos/* ]] && { p="$x"; break; }; done
 case "$*" in *"--method POST"*|*"-X POST"*|*"-X PATCH"*) echo '{}'; exit 0 ;; esac
 case "$*" in *"--method DELETE"*) echo '{}'; exit 0 ;; esac
 case "$p" in
