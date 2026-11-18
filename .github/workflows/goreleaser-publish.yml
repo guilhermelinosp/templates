@@ -74,7 +74,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/gr"
           curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" \
-            "https://api.github.com/repos/guilhermelinosp/ci-templates/contents/goreleaser/goreleaser.yaml?ref=main" \
+            "https://api.github.com/repos/guilhermelinosp/templates/contents/goreleaser/goreleaser.yaml?ref=main" \
             -o "$RUNNER_TEMP/gr/goreleaser.yaml"
 
       - name: Detect main package
