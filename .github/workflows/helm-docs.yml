@@ -23,7 +23,7 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # zizmor: ignore[artipacked] este job faz git commit e git push e depende das credenciais do checkout
+      - uses: actions/checkout@v7 # zizmor: ignore[artipacked] este job faz git commit e git push e depende das credenciais do checkout
 
       - name: Install helm-docs
         run: |

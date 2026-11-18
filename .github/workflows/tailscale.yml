@@ -1,0 +1,139 @@
+name: tailscale
+
+run-name: ${{ github.event_name == 'push' && 'acl' || format('deploy {0} {1}', inputs.app, inputs.tag) }}
+
+# Hub do Tailscale: TODOS os secrets e a config de cada app ficam so neste repositorio. Dois jobs:
+#   deploy: disparo manual (ou pelo cd.yml); entra no tailnet e fala com o ArgoCD.
+#   acl:    push na main em tailscale/**; valida, testa e aplica a ACL (tailscale/policy.hujson). Ver tailscale/README.md.
+# Disparo manual: gh workflow run tailscale.yml -R guilhermelinosp/templates -f app=<nome-da-application> -f tag=v1.2.3
+# Tailscale: identidade federada (OIDC do GitHub, sem secret e SEM vencimento) quando as variables TS_CLIENT_ID e
+# TS_AUDIENCE existem; senao, auth key (TS_AUTHKEY, vence em ate 90 dias). Ver infrastructure/README.md.
+# Secrets: ARGOCD_TOKEN e, so no modo auth key, TS_AUTHKEY
+# Variables: ARGOCD_SERVER, K8S_API_HOST (e TS_CLIENT_ID, TS_AUDIENCE no modo OIDC)
+# Qualquer app serve: `app` e o nome da Application no ArgoCD (= Deployment e imagem ghcr.io/<owner>/<app>). Nada a editar aqui
+# ao criar uma app nova; quem limita o alcance e o AppProject do ArgoCD (role do token).
+# A config (env) vive em infrastructure/configmap.yml de cada repositorio (o ArgoCD a aplica); a versao da imagem e do Image Updater.
+on:
+  push:
+    branches: [main]
+    paths: ['tailscale/**']
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Nome da Application no ArgoCD (igual ao Deployment e a imagem)
+        type: string
+        required: true
+      namespace:
+        description: Namespace do Deployment
+        type: string
+        default: fast
+      action:
+        description: Acao no ArgoCD
+        type: choice
+        options: [diff, sync]
+        default: diff
+      tag:
+        description: Fixa uma tag (ex. v1.2.3), p.ex. para rollback. O Image Updater volta a versao mais nova no proximo ciclo, a menos que voce o pause. Vazio = nao mexer.
+        type: string
+        required: false
+      restart:
+        description: Reiniciar o Deployment depois do sync
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.event_name == 'push' && 'tailscale-acl' || format('deploy-{0}', inputs.app) }}
+  cancel-in-progress: false
+
+env:
+  APP: ${{ inputs.app }}
+  ACTION: ${{ inputs.action }}
+  TAG: ${{ inputs.tag }}
+  NAMESPACE: ${{ inputs.namespace }}
+  IMAGE_BASE: ghcr.io/guilhermelinosp
+  ARGOCD_SERVER: ${{ vars.ARGOCD_SERVER }}
+  GATEWAY_IP: ${{ vars.K8S_API_HOST }}
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.app }}
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      HAS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET != '' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validar entradas
+        run: |
+          echo "$APP" | grep -Eq '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$' || { echo "::error::app invalida: $APP"; exit 1; }
+          echo "$NAMESPACE" | grep -Eq '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$' || { echo "::error::namespace invalido: $NAMESPACE"; exit 1; }
+          if [ -n "$TAG" ] && ! echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$'; then
+            echo "::error::tag invalida: $TAG"; exit 1
+          fi
+          [ -n "$ARGOCD_SERVER" ] && [ -n "$GATEWAY_IP" ] || { echo "::error::configure as variables ARGOCD_SERVER e K8S_API_HOST"; exit 1; }
+
+      - name: Tailscale (identidade federada, sem vencimento)
+        if: vars.TS_CLIENT_ID != '' && vars.TS_AUDIENCE != ''
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ vars.TS_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          tags: tag:github
+          use-cache: "true"
+          ping: ${{ vars.K8S_API_HOST }}
+
+      - name: Tailscale (OAuth client, sem vencimento)
+        if: vars.TS_CLIENT_ID != '' && vars.TS_AUDIENCE == '' && env.HAS_OAUTH_SECRET == 'true'
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ vars.TS_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:github
+          use-cache: "true"
+          ping: ${{ vars.K8S_API_HOST }}
+
+      - name: Tailscale (auth key)
+        if: vars.TS_CLIENT_ID == '' || (vars.TS_AUDIENCE == '' && env.HAS_OAUTH_SECRET != 'true')
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          use-cache: "true"
+          ping: ${{ vars.K8S_API_HOST }}
+
+      - name: Resolver o ArgoCD pelo gateway
+        run: echo "$GATEWAY_IP $ARGOCD_SERVER" | sudo tee -a /etc/hosts
+
+      - name: ArgoCD (API REST)
+        env:
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+          RESTART: ${{ inputs.restart }}
+        run: bash scripts/argocd-rest.sh
+
+  acl:
+    name: Aplicar a ACL
+    if: github.event_name == 'push' && vars.TS_CLIENT_ID != '' && vars.TS_AUDIENCE != '' && vars.TS_TAILNET != ''
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validar, testar e aplicar a ACL
+        uses: tailscale/gitops-acl-action@v1
+        with:
+          oauth-client-id: ${{ vars.TS_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          tailnet: ${{ vars.TS_TAILNET }}
+          policy-file: tailscale/policy.hujson
+          action: apply

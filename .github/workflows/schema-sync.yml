@@ -1,0 +1,65 @@
+name: schema-sync
+
+# Sincroniza os contratos Avro com o Schema Registry do Redpanda. Chamado pelo hellnet-schemas (PR: check, main: apply).
+# Dispara o schema-registry.yml deste repositorio (hub, onde fica o Tailscale) e espera o resultado, entao o
+# resultado aparece e falha no Actions do proprio repositorio. Nenhum secret nem variable de Tailscale no chamador.
+# Requer a identity `cd` do Octo STS (.github/chainguard/cd.sts.yaml), que autoriza este workflow.
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: check (somente leitura) ou apply (registra)
+        required: true
+        type: string
+      timeout-minutes:
+        required: false
+        default: 12
+        type: number
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  sync:
+    name: Schema Registry ${{ inputs.mode }}
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    concurrency:
+      group: schema-sync-${{ inputs.mode }}-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Token do Octo STS (sem chave privada)
+        id: octo
+        uses: octo-sts/action@v1.1.1
+        with:
+          scope: ${{ github.repository_owner }}/templates
+          identity: cd
+
+      - name: Disparar o sync no hub e aguardar
+        env:
+          GH_TOKEN: ${{ steps.octo.outputs.token }}
+          HUB: ${{ github.repository_owner }}/templates
+          MODE: ${{ inputs.mode }}
+          REF: ${{ github.ref }}
+          SOURCE: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [ "$SOURCE" = "${HUB%/*}/hellnet-schemas" ] || { echo "::error::repositorio nao autorizado: $SOURCE"; exit 1; }
+          case "$MODE" in check|apply) ;; *) echo "::error::modo invalido: $MODE"; exit 1 ;; esac
+          printf '%s' "$REF" | grep -Eq '^refs/(heads/[A-Za-z0-9._/-]+|pull/[0-9]+/merge)$' || { echo "::error::ref invalida: $REF"; exit 1; }
+          start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run schema-registry.yml -R "$HUB" --ref main -f mode="$MODE" -f ref="$REF"
+          title="schemas ${MODE} ${REF}"
+          id=""
+          for _ in $(seq 1 30); do
+            id="$(gh run list -R "$HUB" --workflow schema-registry.yml --event workflow_dispatch --limit 20 \
+              --json databaseId,createdAt,displayTitle \
+              --jq "[.[]|select(.createdAt >= \"$start\" and .displayTitle == \"$title\")]|sort_by(.createdAt)|last|.databaseId // empty")"
+            [ -n "$id" ] && break
+            sleep 3
+          done
+          [ -n "$id" ] || { echo "::error::nao achei o run no hub ($title)"; exit 1; }
+          echo "sync no hub: https://github.com/$HUB/actions/runs/$id"
+          gh run watch "$id" -R "$HUB" --exit-status --interval 10

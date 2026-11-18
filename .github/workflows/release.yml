@@ -9,17 +9,13 @@ on:
         default: ubuntu-latest
         type: string
       app-client-id:
-        description: Compatibility alias for app-id
+        description: Obsoleto, ignorado (o token vem do Octo STS)
         required: false
         type: string
       app-id:
-        description: GitHub App client ID for hellnet-actions
+        description: Obsoleto, ignorado (o token vem do Octo STS)
         required: false
         type: string
-    secrets:
-      HELLNET_ACTIONS_PRIVATE_KEY:
-        description: GitHub App private key for hellnet-actions
-        required: true
     outputs:
       version:
         value: ${{ jobs.release.outputs.version }}
@@ -30,6 +26,7 @@ concurrency:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   release:
@@ -38,22 +35,19 @@ jobs:
       version: ${{ steps.semver.outputs.tag }}
 
     steps:
-      - name: Create GitHub App installation token
-        id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+      - name: Token do Octo STS (sem chave privada)
+        id: octo
+        uses: octo-sts/action@v1.1.1
         with:
-          client-id: ${{ inputs.app-id || inputs.app-client-id }}
-          private-key: ${{ secrets.HELLNET_ACTIONS_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
+          scope: ${{ github.repository }}
+          identity: release
 
       - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.octo.outputs.token }}
 
       - name: Calculate next version
         id: semver
@@ -109,7 +103,7 @@ jobs:
 
       - name: Create immutable tag through GitHub API
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.octo.outputs.token }}
           TAG: ${{ steps.semver.outputs.tag }}
           REPOSITORY: ${{ github.repository }}
         shell: bash
@@ -157,7 +151,7 @@ jobs:
 
       - name: Create release through GitHub App
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.octo.outputs.token }}
           TAG: ${{ steps.semver.outputs.tag }}
           REPOSITORY: ${{ github.repository }}
         shell: bash

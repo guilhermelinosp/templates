@@ -1,0 +1,76 @@
+name: schema-registry
+
+run-name: schemas ${{ inputs.mode }} ${{ inputs.ref }}
+
+# Hub do Schema Registry (Redpanda): o Tailscale fica so aqui, como no tailscale.yml. Disparado pelo schema-sync.yml,
+# que os repositorios de contratos chamam. Le os schemas do repositorio hellnet-schemas na ref pedida e fala com
+# https://schema.hellnet.com.br pela tailnet (rota 192.168.1.2/32, ACL tag:github -> 192.168.1.2:443).
+#   check: somente leitura, teste de compatibilidade (PR)   apply: define a compatibilidade e registra (merge em main)
+# Nenhum secret e usado neste job: so as variables TS_CLIENT_ID e TS_AUDIENCE (OIDC, sem vencimento).
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: check (somente leitura) ou apply (registra)
+        type: choice
+        options: [check, apply]
+        required: true
+      ref:
+        description: Ref de hellnet-schemas (refs/heads/main ou refs/pull/N/merge)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: schema-registry-${{ inputs.mode }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY_HOST: schema.hellnet.com.br
+  REGISTRY_IP: ${{ vars.K8S_API_HOST }}
+  MODE: ${{ inputs.mode }}
+  REF: ${{ inputs.ref }}
+
+jobs:
+  sync:
+    name: ${{ inputs.mode }} schemas
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Validar entradas
+        run: |
+          printf '%s' "$REF" | grep -Eq '^refs/(heads/[A-Za-z0-9._/-]+|pull/[0-9]+/merge)$' || { echo "::error::ref invalida: $REF"; exit 1; }
+          [ -n "$REGISTRY_IP" ] || { echo "::error::configure a variable K8S_API_HOST"; exit 1; }
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/hellnet-schemas
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Ferramentas de schema
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip --isolated install --disable-pip-version-check -r requirements.txt
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Tailscale (identidade federada, sem vencimento)
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ vars.TS_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          tags: tag:github
+          use-cache: "true"
+          ping: ${{ vars.K8S_API_HOST }}
+
+      - name: Resolver o Registry pelo gateway
+        run: echo "$REGISTRY_IP $REGISTRY_HOST" | sudo tee -a /etc/hosts >/dev/null
+
+      - name: ${{ inputs.mode }} contra o Redpanda
+        run: python3 scripts/redpanda_registry.py "$MODE" --registry "https://$REGISTRY_HOST"

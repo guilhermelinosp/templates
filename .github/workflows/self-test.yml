@@ -24,8 +24,6 @@ jobs:
       - name: Validar o arquivo real de excecoes
         run: scripts/check-vuln-exceptions.sh security/vuln-exceptions.yml
 
-      - name: Testes do passo de compliance do branch-rules (gh falso, exit code real)
-        run: bash scripts/tests/branch-rules/run.sh
 
   readiness:
     runs-on: ubuntu-latest

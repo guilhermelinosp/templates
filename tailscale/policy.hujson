@@ -1,0 +1,31 @@
+{
+    // Quem pode criar dispositivos com cada tag (a ACL e aplicada pelo GitOps deste repositorio).
+    // tag:github = runners do GitHub Actions (deploy e tailscale-check do repositorio templates).
+    "tagOwners": {
+        "tag:github": ["autogroup:admin"],
+    },
+
+    "acls": [
+        // Os seus dispositivos (com login de usuario) acessam tudo.
+        {
+            "action": "accept",
+            "src":    ["autogroup:member"],
+            "dst":    ["*:*"],
+        },
+        // O runner de CI so alcanca a porta 443 do gateway do cluster (ArgoCD).
+        {
+            "action": "accept",
+            "src":    ["tag:github"],
+            "dst":    ["192.168.1.2:443"],
+        },
+    ],
+
+    // Testes: o `tailscale/gitops-acl-action` os roda no PR e antes de aplicar. Se a regra do runner regredir, o merge e bloqueado.
+    "tests": [
+        {
+            "src":    "tag:github",
+            "accept": ["192.168.1.2:443"],
+            "deny":   ["192.168.1.2:22", "192.168.1.2:6443", "192.168.1.2:80"],
+        },
+    ],
+}

@@ -1,0 +1,76 @@
+name: cd
+
+# CD dos servicos: chamado pelo pipeline de cada repositorio DEPOIS de a imagem ser publicada.
+# Dispara o tailscale.yml deste repositorio (hub, onde ficam o Tailscale e o token do ArgoCD) e espera o resultado,
+# entao a implantacao aparece e falha no Actions do proprio servico. Nenhum secret novo nos servicos: so o do GitHub App.
+# Requer o GitHub App (hellnet-actions) instalado no templates com a permissao Actions: Read and write.
+on:
+  workflow_call:
+    inputs:
+      app:
+        description: Nome da app (igual ao da Application no ArgoCD)
+        required: true
+        type: string
+      version:
+        description: Tag da imagem publicada (ex. v1.2.3)
+        required: true
+        type: string
+      namespace:
+        description: Namespace do Deployment no cluster
+        required: false
+        type: string
+        default: fast
+      app-client-id:
+        description: Obsoleto, ignorado (o token vem do Octo STS)
+        required: false
+        type: string
+      timeout-minutes:
+        required: false
+        default: 12
+        type: number
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  cd:
+    name: Deploy ${{ inputs.app }} ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    concurrency:
+      group: cd-${{ inputs.app }}
+      cancel-in-progress: false
+    steps:
+      - name: Token do Octo STS (sem chave privada)
+        id: octo
+        uses: octo-sts/action@v1.1.1
+        with:
+          scope: ${{ github.repository_owner }}/templates
+          identity: cd
+
+      - name: Disparar o deploy no hub e aguardar
+        env:
+          GH_TOKEN: ${{ steps.octo.outputs.token }}
+          HUB: ${{ github.repository_owner }}/templates
+          APP: ${{ inputs.app }}
+          NAMESPACE: ${{ inputs.namespace }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          echo "$APP" | grep -Eq '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$' || { echo "::error::app invalida: $APP"; exit 1; }
+          echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$' || { echo "::error::versao invalida: $VERSION"; exit 1; }
+          start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run tailscale.yml -R "$HUB" --ref main -f app="$APP" -f namespace="$NAMESPACE" -f action=sync -f tag="$VERSION"
+          title="deploy ${APP} ${VERSION}"
+          id=""
+          for _ in $(seq 1 30); do
+            id="$(gh run list -R "$HUB" --workflow tailscale.yml --event workflow_dispatch --limit 20 \
+              --json databaseId,createdAt,displayTitle \
+              --jq "[.[]|select(.createdAt >= \"$start\" and .displayTitle == \"$title\")]|sort_by(.createdAt)|last|.databaseId // empty")"
+            [ -n "$id" ] && break
+            sleep 3
+          done
+          [ -n "$id" ] || { echo "::error::nao achei o run do deploy no hub ($title)"; exit 1; }
+          echo "deploy no hub: https://github.com/$HUB/actions/runs/$id"
+          gh run watch "$id" -R "$HUB" --exit-status --interval 10

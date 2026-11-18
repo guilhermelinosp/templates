@@ -11,11 +11,12 @@ All workflows run on **ubuntu-latest** (GitHub-hosted runners).
 ```yaml
 jobs:
   build:
-    uses: guilhermelinosp/templates/.github/workflows/dotnet-build.yml@<full-commit-sha>
+    uses: guilhermelinosp/templates/.github/workflows/dotnet-build.yml@latest
 ```
 
-Production consumers pin reusable workflows to a full commit SHA. Tags and `@main`
-are for exploration only.
+Consumers call the reusable workflows at `@latest` (a tag that the `latest` workflow
+keeps on the newest release), and third-party actions are referenced by version tag,
+not by commit SHA.
 
 ## Hellnet control plane
 
@@ -26,14 +27,13 @@ opt in explicitly:
 |---|---|---|
 | `auto-pr.yml` | one PR per supported branch, labels, no duplicate PRs | App: contents/issues/pull requests/workflows |
 | `pr-policy.yml` | title, branch, workflow ownership and shell policy | none; read-only |
-| `pr-report.yml` | one persistent Build/Tests/Schema/Shell/Security/CodeQL/Policy report | App: issues/pull requests/checks |
-| `release.yml` | repository semver, immutable bot tag and release notes | App: contents |
-| `maintenance.yml` | pin refresh PRs using Contents API commits | App: contents/issues/pull requests/workflows |
+| `pr-report.yml` | one persistent Build/Tests/Schema/Shell/Security/CodeQL/Policy report | Octo STS token: issues/pull requests/checks |
+| `release.yml` | repository semver, immutable bot tag and release notes | Octo STS token: contents |
 
-The private key is accepted only by write-capable jobs. Validators do not receive
-it and must run with `contents: read` or empty permissions. Workflow changes are
-required to arrive through a PR authored by `hellnet-actions[bot]`; no workflow
-or release job merges its own PR.
+There is no private key: write-capable jobs exchange their OIDC token for a short-lived
+Octo STS token, and only this repository's workflows can mint it (see `CI-CONTROL-PLANE.md`).
+Validators cannot mint tokens and must run with `contents: read` or empty permissions.
+Automation PRs are authored by `octo-sts[bot]`; no workflow or release job merges its own PR.
 
 ---
 
@@ -93,7 +93,7 @@ or release job merges its own PR.
 | `helm-publish.yml` | Package and publish Helm charts to OCI registry |
 | `helm-docs.yml` | Auto-generate Helm chart README from values.yaml |
 | `kustomize-validate.yml` | Kustomize build + kubeconform validation |
-| `deploy.yml` | Helm upgrade via kubeconfig secret + rollout verification |
+| `cd.yml` | CD de qualquer app: dispara o hub `tailscale.yml` (Tailscale por OIDC + ArgoCD REST) e espera o rollout |
 | `conftest.yml` | OPA policy-as-code for Kubernetes configs |
 | `kube-bench.yml` | CIS Kubernetes benchmark |
 | `popeye.yml` | K8s cluster sanitizer |
@@ -229,7 +229,7 @@ mutable `latest` tag.
 - Public key for verification: [`signing-key.asc`](signing-key.asc)
   (`gpg --import signing-key.asc && git verify-tag v1.2.3`)
 - Enrolled repos: hellnet-lib-cache, hellnet-lib-kafka, hellnet-lib-telemetry,
-  hellnet-lib-environments, golang-lib-template
+  golang-lib-template
 
 > ⚠️ The account is personal (no org-level secrets), so each repo carries its
 > own copy of the secret. Use
@@ -258,7 +258,7 @@ mutable `latest` tag.
 ```yaml
 jobs:
   scan:
-    uses: guilhermelinosp/templates/.github/workflows/trivy.yml@<full-commit-sha>
+    uses: guilhermelinosp/templates/.github/workflows/trivy.yml@latest
     with:
       image: ghcr.io/org/app@sha256:abc123
 ```
@@ -268,12 +268,11 @@ jobs:
 ```yaml
 jobs:
   deploy:
-    uses: guilhermelinosp/templates/.github/workflows/deploy.yml@<full-commit-sha>
+    uses: guilhermelinosp/templates/.github/workflows/cd.yml@latest
     with:
-      namespace: production
-      release-name: my-app
-    secrets:
-      KUBECONFIG: ${{ secrets.KUBECONFIG }}
+      app: my-app
+      version: ${{ needs.release.outputs.version }}
+    secrets: inherit
 ```
 
 ### Chaining workflows
@@ -281,15 +280,15 @@ jobs:
 ```yaml
 jobs:
   lint:
-    uses: guilhermelinosp/templates/.github/workflows/shellcheck.yml@<full-commit-sha>
+    uses: guilhermelinosp/templates/.github/workflows/shellcheck.yml@latest
 
   build:
     needs: [lint]
-    uses: guilhermelinosp/templates/.github/workflows/go-build.yml@<full-commit-sha>
+    uses: guilhermelinosp/templates/.github/workflows/go-build.yml@latest
 
   scan:
     needs: [build]
-    uses: guilhermelinosp/templates/.github/workflows/gitleaks.yml@<full-commit-sha>
+    uses: guilhermelinosp/templates/.github/workflows/gitleaks.yml@latest
 ```
 
 ---
@@ -301,5 +300,4 @@ jobs:
 - **SARIF quando a ferramenta suporta** — ex.: trivy e nuclei enviam SARIF ao Code Scanning. O ZAP não gera SARIF: publica relatórios como artifact do próprio action.
 - **Conventional Commits** — semver bump depends on commit messages
 - **Reusable** — opt-in workflows are `workflow_call` for composition
-- **Safe writes** — bot writes use the `hellnet-actions` installation token; `GITHUB_TOKEN` remains read-only where possible
-- **Immutable history** — maintenance commits are created through the Contents API and checked with `verification.verified == true`
+- **Safe writes** — bot writes use the Octo STS token (OIDC, no stored key); `GITHUB_TOKEN` remains read-only where possible

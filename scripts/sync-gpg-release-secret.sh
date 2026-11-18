@@ -34,7 +34,7 @@ done
 # Default set = repos enrolled in signed releases.
 if [ ${#REPOS[@]} -eq 0 ]; then
   REPOS=(hellnet-lib-cache hellnet-lib-kafka hellnet-lib-telemetry \
-         hellnet-lib-environments golang-lib-template)
+         golang-lib-template)
 fi
 
 KEY_FILE="${GPG_PRIVATE_KEY_FILE:-}"
