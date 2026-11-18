@@ -68,15 +68,34 @@ jobs:
           printf '%s\n' "$PRE_RELEASE_COMMANDS" > "$RUNNER_TEMP/pre-release.sh"
           bash -eo pipefail "$RUNNER_TEMP/pre-release.sh"
 
+      - name: Fetch shared GoReleaser config
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/gr"
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" \
+            "https://api.github.com/repos/guilhermelinosp/ci-templates/contents/goreleaser/goreleaser.yaml?ref=main" \
+            -o "$RUNNER_TEMP/gr/goreleaser.yaml"
+
+      - name: Detect main package
+        id: gr
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          d=$(find cmd -mindepth 1 -maxdepth 1 -type d | sort | head -1)
+          echo "main=./$d" >> "$GITHUB_OUTPUT"
+          echo "binary=$(basename "$d")" >> "$GITHUB_OUTPUT"
+
       - name: Publish binaries via GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: ${{ inputs.args }}
+          args: ${{ inputs.args }} --config ${{ runner.temp }}/gr/goreleaser.yaml
           workdir: ${{ inputs.working-directory }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          GORELEASER_MAIN: ${{ steps.gr.outputs.main }}
+          GORELEASER_BINARY: ${{ steps.gr.outputs.binary }}
 
       - name: Collect artifacts with unique names + checksums
         working-directory: ${{ inputs.working-directory }}
