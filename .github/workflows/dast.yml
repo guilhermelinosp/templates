@@ -68,7 +68,7 @@ jobs:
     needs: [wait-target]
     permissions:
       contents: read
-    uses: ./.github/workflows/zap.yml
+    uses: ./.github/workflows/zap.yml # zizmor: ignore[self-repository] actionlint rejeita $/ (formato invalido); ./ e a unica forma aceita
     with:
       target-url: ${{ inputs.target-url }}
       scan-type: ${{ inputs.zap-scan-type }}
@@ -78,7 +78,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    uses: ./.github/workflows/nuclei.yml
+    uses: ./.github/workflows/nuclei.yml # zizmor: ignore[self-repository] actionlint rejeita $/ (formato invalido); ./ e a unica forma aceita
     with:
       target-url: ${{ inputs.target-url }}
       severity: ${{ inputs.nuclei-severity }}

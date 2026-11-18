@@ -28,7 +28,7 @@ jobs:
           reporter: github-check
           level: error
           filter_mode: nofilter
-          workdir: ${{ inputs.dir }}
+          path: ${{ inputs.dir }}
 
       - name: Check formatting (shfmt)
         env:
