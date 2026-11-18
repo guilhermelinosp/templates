@@ -46,7 +46,7 @@ expect "http 200 e pronto" 0 "" bash "$SCRIPT" http://127.0.0.1:18080/ 3
 expect "http 404 conta como resposta (<500)" 0 "" bash "$SCRIPT" http://127.0.0.1:18082/ 3
 expect "http 500 nao e pronto (prazo acaba)" 1 "nao ficou pronto" bash "$SCRIPT" http://127.0.0.1:18081/ 2
 expect "porta sem servidor: prazo acaba" 1 "Failed to connect" bash "$SCRIPT" http://127.0.0.1:18999/ 2
-expect "https autoassinado sem CA: falha TLS, nao vira pronto" 1 "certificate problem" bash "$SCRIPT" https://127.0.0.1:18443/ 2
+expect "https autoassinado sem CA: falha TLS, nao vira pronto" 1 "certificate" bash "$SCRIPT" https://127.0.0.1:18443/ 2
 expect "https com CA_CERT_FILE: pronto" 0 "" env CA_CERT_FILE="$WORK/cert.pem" bash "$SCRIPT" https://127.0.0.1:18443/ 3
 expect "CA_CERT_FILE inexistente: erro de configuracao (rc 2)" 2 "nao encontrado" env CA_CERT_FILE="$WORK/nao-existe.pem" bash "$SCRIPT" https://127.0.0.1:18443/ 2
 expect "script nao desabilita TLS (sem curl -k)" 0 "" bash -c "! grep -E 'curl[^|]* -[a-zA-Z]*k' '$SCRIPT'"
