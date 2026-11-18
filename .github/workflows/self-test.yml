@@ -39,6 +39,6 @@ jobs:
     # Chama o workflow reutilizavel com templates-ref = SHA deste commit: prova o caminho do input.
     permissions:
       contents: read
-    uses: $/.github/workflows/vuln-exceptions.yml
+    uses: ./.github/workflows/vuln-exceptions.yml
     with:
       templates-ref: ${{ github.sha }}
