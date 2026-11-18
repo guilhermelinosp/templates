@@ -71,6 +71,8 @@ jobs:
         with:
           scan-type: fs
           scan-ref: .
+          # fixtures de teste do Conftest sao manifestos invalidos de proposito; nao sao codigo real
+          skip-dirs: policy/kubernetes/testdata
           scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
           ignore-unfixed: true
