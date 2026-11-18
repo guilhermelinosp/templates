@@ -32,7 +32,15 @@ jobs:
           repo="${GITHUB_REPOSITORY}"
           release="$(gh api "repos/${repo}/releases/latest" --jq .tag_name)"
           target="$(gh api "repos/${repo}/commits/${release}" --jq .sha)"
-          current="$(gh api "repos/${repo}/git/ref/tags/latest" --jq .object.sha 2>/dev/null || true)"
+          err="$(mktemp)"
+          if current="$(gh api "repos/${repo}/git/ref/tags/latest" --jq .object.sha 2>"$err")"; then
+            :
+          elif grep -q 'HTTP 404' "$err"; then
+            current=""
+          else
+            cat "$err" >&2; rm -f "$err"; exit 1
+          fi
+          rm -f "$err"
           if [ "${current}" = "${target}" ]; then
             echo "latest already at ${release} (${target})"
             exit 0

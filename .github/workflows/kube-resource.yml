@@ -36,16 +36,24 @@ jobs:
           ERROR_FILE=$(mktemp)
           echo 0 > "$ERROR_FILE"
 
+          if [ ! -d "$INPUT_MANIFESTS_DIR" ]; then
+            echo "::error::manifests-dir nao existe: $INPUT_MANIFESTS_DIR"
+            exit 1
+          fi
+
+          # erro de yq em um arquivo e erro desse arquivo: nunca "sem campos" nem pulado em silencio
+          bad_file() { echo "::error file=$1::$2"; ERRORS=$((ERRORS + 1)); }
+
           set +e
           while IFS= read -r -d '' FILE; do
-            KIND=$(yq eval '.kind' "$FILE" 2>/dev/null)
+            if ! KIND="$(yq eval '.kind' "$FILE")"; then bad_file "$FILE" "YAML invalido ou ilegivel"; continue; fi
             case "$KIND" in
               Deployment|StatefulSet|DaemonSet)
-                NAME=$(yq eval '.metadata.name' "$FILE" 2>/dev/null)
+                if ! NAME="$(yq eval '.metadata.name' "$FILE")"; then bad_file "$FILE" "falha ao ler metadata.name"; continue; fi
                 echo "--- Checking: $NAME ($FILE) ---"
 
-                CPU_REQ=$(yq eval '.spec.template.spec.containers[0].resources.requests.cpu' "$FILE" 2>/dev/null)
-                MEM_REQ=$(yq eval '.spec.template.spec.containers[0].resources.requests.memory' "$FILE" 2>/dev/null)
+                if ! CPU_REQ="$(yq eval '.spec.template.spec.containers[0].resources.requests.cpu' "$FILE")"; then bad_file "$FILE" "falha ao ler cpu request"; continue; fi
+                if ! MEM_REQ="$(yq eval '.spec.template.spec.containers[0].resources.requests.memory' "$FILE")"; then bad_file "$FILE" "falha ao ler memory request"; continue; fi
 
                 if [ -z "$CPU_REQ" ] || [ "$CPU_REQ" = "null" ]; then
                   echo "  No CPU request"
@@ -62,7 +70,7 @@ jobs:
                 fi
                 ;;
             esac
-          done < <(find "$INPUT_MANIFESTS_DIR" -type f \( -name '*.yaml' -o -name '*.yml' \) -print0 2>/dev/null)
+          done < <(find "$INPUT_MANIFESTS_DIR" -type f \( -name '*.yaml' -o -name '*.yml' \) -print0)
           set -e
 
           echo "$ERRORS" > "$ERROR_FILE"

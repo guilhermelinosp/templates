@@ -33,9 +33,14 @@ jobs:
           fi
           IFS='.' read -r M m p <<< "${LAST_TAG#v}"
           M=${M:-1}; m=${m:-0}; p=${p:-0}
-          git log --format="%s" "$LAST_TAG..HEAD" 2>/dev/null | grep -q "BREAKING CHANGE\|!:" && { M=$((M+1)); m=0; p=0; } \
-            || git log --format="%s" "$LAST_TAG..HEAD" 2>/dev/null | grep -q "^feat" && { m=$((m+1)); p=0; } \
-            || p=$((p+1))
+          LOG="$(git log --format="%s" "$LAST_TAG..HEAD")"
+          if grep -q "BREAKING CHANGE\|!:" <<< "$LOG"; then
+            M=$((M+1)); m=0; p=0
+          elif grep -q "^feat" <<< "$LOG"; then
+            m=$((m+1)); p=0
+          else
+            p=$((p+1))
+          fi
           echo "tag=v${M}.${m}.${p}" >> "$GITHUB_OUTPUT"
 
       - name: Create tag

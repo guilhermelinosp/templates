@@ -117,9 +117,12 @@ jobs:
           if-no-files-found: ignore
 
       - name: Use canonical golangci config
-        run: >-
-          cp .golangci.yml .golangci.ci.yml 2>/dev/null || echo "{}" >
-          .golangci.ci.yml
+        run: |
+          if [ -f .golangci.yml ]; then
+            cp .golangci.yml .golangci.ci.yml
+          else
+            echo "{}" > .golangci.ci.yml
+          fi
 
       - name: Lint
         uses: golangci/golangci-lint-action@v9

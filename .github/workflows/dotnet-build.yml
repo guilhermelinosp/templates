@@ -56,7 +56,7 @@ jobs:
 
       - name: Detect solution
         run: |
-          SLN=$(find . -maxdepth 2 \( -name '*.slnx' -o -name '*.sln' \) 2>/dev/null | head -1 || echo "")
+          SLN=$(find . -maxdepth 2 \( -name '*.slnx' -o -name '*.sln' \) | head -1)
           echo "SLN=$SLN" >> "$GITHUB_ENV"
 
       - name: Restore
