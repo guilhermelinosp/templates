@@ -71,7 +71,7 @@ Automation PRs are authored by `octo-sts[bot]`; no workflow or release job merge
 
 | Workflow | Description |
 |---|---|
-| `shellcheck.yml` | ShellCheck + shfmt formatting check |
+| `shellcheck.yml` | ShellCheck (reviewdog, bloqueante no nível `error`) + shfmt (informativo: formatação não reprova o job) |
 
 ### Containers
 
@@ -183,11 +183,11 @@ Classificação pelo que o YAML faz (não pelo que o action faz por padrão):
 
 #### Limitações conhecidas e requisitos externos
 
-- **Workflows não executados no GitHub Actions.** As validações são locais: YAML, actionlint, zizmor, conftest, testes do validador de exceções e dry-run do Kyverno.
+- **Verificações em runner real.** `self-test.yml` (manual, `workflow_dispatch`) roda exceções, readiness, o validador por workflow reutilizável e os testes do passo de compliance. Os demais workflows são validados localmente (YAML, actionlint, zizmor, conftest, dry-run do Kyverno) e em PRs. Publicação NuGet, DAST contra alvo real e verificação de assinatura Kyverno ainda não foram executados.
 - **Assinatura Cosign não verificada de ponta a ponta.** Exige uma imagem assinada pelo `cosign.yml` e acesso de leitura ao `ghcr.io`.
 - **Scripts vêm do `templates-ref`.** `dast.yml` e `vuln-exceptions.yml` exigem `templates-ref` (tag ou SHA do repositório templates). Passe a mesma versão usada em `uses:`. Não há checagem automática de que as duas coincidem.
 - **Actions por tag, não por SHA.** Por decisão do mantenedor; o zizmor desliga só `unpinned-uses`. Alguns workflows herdados já usam SHA, então a convenção não é uniforme.
-- **`self-repository` (baixa):** o zizmor sugere `$/` em vez de `./` nas chamadas locais. Não confirmei essa sintaxe no GitHub; mantive `./`.
+- **`self-repository` (baixa):** o zizmor sugere `$/` em vez de `./` nas chamadas locais. O actionlint rejeita `$/` como formato inválido de referência, então `./` é a única forma aceita. Os três pontos têm `zizmor: ignore` com esse motivo.
 - **Testes que só rodam no GitHub Actions:** `self-test.yml` (manual, `gh workflow run self-test.yml`) roda exceções, readiness e a chamada real do workflow de exceções. Não foi executado ainda. Publicação NuGet, artifacts do ZAP, DAST contra alvo real e verificação de assinatura Kyverno exigem secrets, registry ou alvo próprio e não estão cobertos.
 - **Relatórios de DAST.** ZAP publica relatórios como artifact (sem SARIF). Nuclei envia SARIF e não tem gate verificado. A CA de `target-ca-cert` vale só para a espera: os scanners validam o certificado por conta própria.
 - **`goreleaser-publish.yml`:** zizmor sem achados neste arquivo. A config do GoReleaser vem de `ci-templates@main` (implícito, mantido por ser comportamento de publicação).
