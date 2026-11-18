@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Espera uma URL responder (qualquer status HTTP entre 100 e 499) antes de iniciar um scan.
+# Espera o alvo estar de pe antes de iniciar um scan. Aceita 2xx e 3xx, e 401/403 (alvo protegido por
+# autenticacao tambem esta de pe). Respostas 4xx comuns (404 etc.) e 5xx NAO contam como prontas.
 # Uso: wait-for-url.sh <url> [timeout-segundos=300]
 # Variaveis:
 #   CA_CERT_FILE  PEM com a CA que assina o certificado do alvo (opcional). Se definida,
@@ -25,7 +26,7 @@ while :; do
   # Falha de conexao ou de TLS e esperada enquanto o alvo sobe: curl sai com erro e imprime 000.
   # O motivo fica em ERR_FILE e so e reportado quando o prazo acaba.
   code="$(curl "${CURL_ARGS[@]}" "$URL" 2>"$ERR_FILE" || true)"
-  if [[ "$code" =~ ^[0-9]+$ ]] && (( code >= 100 && code < 500 )); then
+  if [[ "$code" =~ ^[0-9]+$ ]] && { (( code >= 200 && code < 400 )) || (( code == 401 || code == 403 )); }; then
     echo "pronto: $URL responde HTTP $code"
     exit 0
   fi

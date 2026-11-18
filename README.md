@@ -59,7 +59,7 @@ Automation PRs are authored by `octo-sts[bot]`; no workflow or release job merge
 
 | Workflow | Description |
 |---|---|
-| `shellcheck.yml` | ShellCheck (reviewdog, bloqueante no nível `error`) + shfmt (informativo: formatação não reprova o job) |
+| `shellcheck.yml` | ShellCheck (reviewdog, bloqueante no nível `error`) + shfmt (bloqueante: formatação fora do padrão reprova o job) |
 
 ### Containers
 
@@ -118,7 +118,7 @@ Automation PRs are authored by `octo-sts[bot]`; no workflow or release job merge
 |---|---|
 | `zap.yml` | OWASP ZAP baseline/full scan |
 | `nuclei.yml` | ProjectDiscovery nuclei vulnerability scanner |
-| `dast.yml` | Orquestra ZAP e Nuclei contra uma `target-url` já no ar. Espera o alvo responder (`scripts/wait-for-url.sh`, TLS validado; `target-ca-cert` para CA própria) e roda os dois scanners. Exige `templates-ref`. Sem infraestrutura de preview |
+| `dast.yml` | Orquestra ZAP e Nuclei contra uma `target-url` já no ar. Espera o alvo estar de pé (`scripts/wait-for-url.sh`: 2xx/3xx, 401 e 403; TLS validado; `target-ca-cert` para CA própria) e roda os dois scanners. Exige `templates-ref`. Sem infraestrutura de preview |
 
 #### Supply Chain
 
@@ -161,7 +161,7 @@ Classificação pelo que o YAML faz (não pelo que o action faz por padrão):
 - **Não classificado**: `codeql`, `semgrep`, `gosec`, `nuclei`, `gitleaks`, `trufflehog`, `scorecard`. O comportamento depende da configuração padrão de cada action; confirme no GitHub antes de contar com eles como barreira.
 
 #### Verificação local
-- Readiness: `scripts/tests/wait-for-url/run.sh` (8 casos: HTTP, HTTPS autoassinado com e sem CA, TLS nunca vira pronto; usa node e openssl locais).
+- Readiness: `scripts/tests/wait-for-url/run.sh` (9 casos: HTTP, HTTPS autoassinado com e sem CA, TLS nunca vira pronto, 404 e 500 não contam como prontos, 401 conta; usa node e openssl locais).
 
 - Exceções de vulnerabilidade: `scripts/tests/vuln-exceptions/run.sh` (8 casos: válidos passam; expirada, sem dono, escopo genérico, data inválida, chave com typo, arquivo vazio e escopo `all` falham) e `scripts/check-vuln-exceptions.sh security/vuln-exceptions.yml` (arquivo real). Nenhum workflow do repositório executa esses testes: rode-os antes de alterar o validador. Workflow reutilizável: `vuln-exceptions.yml`.
 - Políticas Kubernetes (Conftest/Rego, `policy/kubernetes/security.rego`): `conftest verify --policy policy/kubernetes` roda os testes unitários (8 casos, incluindo CronJob); `conftest test <manifesto.yaml> --policy policy/kubernetes --namespace kubernetes` avalia um manifesto. Cobre Pod, Deployment, StatefulSet, DaemonSet, ReplicaSet, Job e CronJob. `policy/kubernetes/testdata/invalid-deployment.yaml` é fixture inválido de propósito.

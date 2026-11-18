@@ -28,6 +28,7 @@ start() { node "$WORK/srv.js" "$@" & PIDS+=($!); sleep 1; }
 start http 18080 200
 start http 18081 500
 start http 18082 404
+start http 18083 401
 start https 18443 200
 
 pass=0; failn=0
@@ -43,7 +44,8 @@ expect() { # nome, rc esperado, texto que deve aparecer (opcional), comando...
 }
 
 expect "http 200 e pronto" 0 "" bash "$SCRIPT" http://127.0.0.1:18080/ 3
-expect "http 404 conta como resposta (<500)" 0 "" bash "$SCRIPT" http://127.0.0.1:18082/ 3
+expect "http 404 nao e pronto (prazo acaba)" 1 "nao ficou pronto" bash "$SCRIPT" http://127.0.0.1:18082/ 2
+expect "http 401 (protegido) conta como pronto" 0 "" bash "$SCRIPT" http://127.0.0.1:18083/ 3
 expect "http 500 nao e pronto (prazo acaba)" 1 "nao ficou pronto" bash "$SCRIPT" http://127.0.0.1:18081/ 2
 expect "porta sem servidor: prazo acaba" 1 "Failed to connect" bash "$SCRIPT" http://127.0.0.1:18999/ 2
 expect "https autoassinado sem CA: falha TLS, nao vira pronto" 1 "certificate" bash "$SCRIPT" https://127.0.0.1:18443/ 2
