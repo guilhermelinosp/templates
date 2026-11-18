@@ -35,6 +35,9 @@ jobs:
           INPUT_DIR: ${{ inputs.dir }}
         run: |
           sudo apt-get update && sudo apt-get install -y shfmt
-          find "$INPUT_DIR" -name '*.sh' -not -path './.git/*' -print0 \
-            | xargs -0 -r shfmt -d \
-            || echo "Run 'shfmt -w .' to fix formatting"
+          # shfmt bloqueante: formatacao fora do padrao reprova o job
+          if ! find "$INPUT_DIR" -name '*.sh' -not -path './.git/*' -print0 \
+            | xargs -0 -r shfmt -d; then
+            echo "::error::scripts fora do formato shfmt; rode 'shfmt -w .' e commite"
+            exit 1
+          fi
