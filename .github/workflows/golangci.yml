@@ -17,7 +17,7 @@ on:
         type: string
       golangci-version:
         required: false
-        default: "latest"
+        default: "v2.15.0"
         type: string
       working-directory:
         required: false
