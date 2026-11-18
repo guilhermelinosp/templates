@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Install kustomize
         run: |
@@ -37,12 +39,16 @@ jobs:
           sudo mv kubeconform /usr/local/bin/
 
       - name: kustomize build
+        env:
+          INPUT_KUSTOMIZE_DIR: ${{ inputs.kustomize-dir }}
         run: |
-          kustomize build ${{ inputs.kustomize-dir }} > /tmp/manifests.yaml
+          kustomize build "$INPUT_KUSTOMIZE_DIR" > /tmp/manifests.yaml
 
       - name: kubeconform validation
+        env:
+          INPUT_KUBE_VERSION: ${{ inputs.kube-version }}
         run: |
           kubeconform \
-            -kubernetes-version ${{ inputs.kube-version }} \
+            -kubernetes-version "$INPUT_KUBE_VERSION" \
             -strict \
             /tmp/manifests.yaml

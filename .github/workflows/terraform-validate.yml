@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
@@ -30,14 +32,19 @@ jobs:
           terraform_version: ${{ inputs.terraform-version }}
 
       - name: Terraform fmt
+        env:
+          INPUT_DIR: ${{ inputs.dir }}
         run: |
-          terraform fmt -check -recursive ${{ inputs.dir }} || \
-            echo "::warning::Run 'terraform fmt -recursive' to fix formatting"
+          terraform fmt -check -recursive "$INPUT_DIR"
 
       - name: Terraform init
+        env:
+          INPUT_DIR: ${{ inputs.dir }}
         run: |
-          terraform -chdir=${{ inputs.dir }} init -backend=false
+          terraform -chdir="$INPUT_DIR" init -backend=false
 
       - name: Terraform validate
+        env:
+          INPUT_DIR: ${{ inputs.dir }}
         run: |
-          terraform -chdir=${{ inputs.dir }} validate
+          terraform -chdir="$INPUT_DIR" validate

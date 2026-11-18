@@ -24,6 +24,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr merge "${{ github.event.pull_request.number }}" \
-            --repo "${{ github.repository }}" \
+          gh pr merge "$EVENT_PR_NUMBER" \
+            --repo "$REPO_FULL" \
             --auto --squash
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_FULL: ${{ github.repository }}

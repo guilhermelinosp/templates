@@ -24,19 +24,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       # semgrep-action@v1 has a broken `args` passthrough (exec: "--config");
       # run the semgrep CLI directly instead. .github is excluded because the
       # workflows are scanned by analyze(actions) separately.
       - name: Run semgrep
         id: semgrep
+        env:
+          INPUT_SEVERITY: ${{ inputs.severity }}
+          INPUT_CONFIG: ${{ inputs.config }}
         run: |
           pip install --quiet --break-system-packages semgrep
           severity_args=""
-          for s in $(echo "${{ inputs.severity }}" | tr ',' ' '); do
+          for s in $(echo "$INPUT_SEVERITY" | tr ',' ' '); do
             severity_args="$severity_args --severity $s"
           done
-          semgrep --config "${{ inputs.config }}" $severity_args --exclude .github --sarif-output semgrep.sarif
+          semgrep --config "$INPUT_CONFIG" $severity_args --exclude .github --sarif-output semgrep.sarif
 
       - name: Upload SARIF
         if: always()

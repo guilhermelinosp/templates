@@ -24,17 +24,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Run kube-bench
+        env:
+          INPUT_CONFIG_FILE: ${{ inputs.config-file }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           CONFIG=""
-          if [ -n "${{ inputs.config-file }}" ]; then
-            CONFIG="-v ${{ inputs.config-file }}:/etc/kube-bench/cfg/config.yaml"
+          if [ -n "$INPUT_CONFIG_FILE" ]; then
+            CONFIG="-v $INPUT_CONFIG_FILE:/etc/kube-bench/cfg/config.yaml"
           fi
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             $CONFIG \
-            aquasec/kube-bench:${{ inputs.version }} \
+            aquasec/kube-bench:"$INPUT_VERSION" \
             run \
             --exitcode 1 \
             --outputfile /tmp/kube-bench.sarif \

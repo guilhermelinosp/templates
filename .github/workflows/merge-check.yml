@@ -22,11 +22,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Check merge strategy (--no-ff)
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          BASE="${{ github.base_ref }}"
-          HEAD="${{ github.head_ref }}"
+          BASE="$BASE_REF"
+          HEAD="$HEAD_REF"
 
           if ! git merge-base --is-ancestor origin/$BASE HEAD 2>/dev/null; then
             echo "Base branch not found locally, skipping check"
@@ -38,13 +42,18 @@ jobs:
 
       - name: Confirm base branch
         if: github.base_ref == 'main'
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          echo "PR approved for ${{ github.base_ref }}"
+          echo "PR approved for $BASE_REF"
 
       - name: Conventional Commits check
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          BASE="${{ github.base_ref }}"
-          HEAD="${{ github.head_ref }}"
+          BASE="$BASE_REF"
+          HEAD="$HEAD_REF"
 
           MERGE_BASE=$(git merge-base origin/$BASE HEAD 2>/dev/null || echo "")
           if [ -z "$MERGE_BASE" ]; then

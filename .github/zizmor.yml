@@ -1,0 +1,6 @@
+# Configuracao do zizmor (auditoria de workflows GitHub Actions).
+# unpinned-uses desligado de proposito: o repositorio usa tags (ex.: @v4) por preferencia
+# explicita do mantenedor; nao fixar actions por commit SHA completo. Os demais audits continuam ativos.
+rules:
+  unpinned-uses:
+    disable: true

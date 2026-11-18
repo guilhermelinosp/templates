@@ -20,6 +20,8 @@ jobs:
       packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
@@ -46,7 +48,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # zizmor: ignore[artipacked] credenciais necessarias para push/tag neste job
         with:
           fetch-depth: 0
 
@@ -80,6 +82,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
@@ -95,11 +99,13 @@ jobs:
       - name: Publish to GitHub Packages
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          ACTOR: ${{ github.actor }}
         run: |
-          OWNER="${{ github.repository_owner }}"
+          OWNER="$REPO_OWNER"
           SOURCE="https://nuget.pkg.github.com/$OWNER/index.json"
           dotnet nuget add source github "$SOURCE" \
-            --username "${{ github.actor }}" \
+            --username "$ACTOR" \
             --password "$GH_TOKEN" \
             --store-password-in-clear-text || true
           dotnet nuget push ./artifacts/*.nupkg \
@@ -112,6 +118,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Create GitHub Release
         env:

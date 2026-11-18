@@ -1,0 +1,6 @@
+exceptions:
+  - id: GHSA-abcd-efgh-ijkl
+    scope: alpine/openssl
+    reason: Aguardando upstream publicar correcao da imagem base.
+    owner: "@guilhermelinosp"
+    expires: 2027-02-30

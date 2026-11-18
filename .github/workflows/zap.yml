@@ -2,7 +2,7 @@ name: zap
 
 # OWASP ZAP DAST scanning
 # Secrets: GITHUB_TOKEN (auto)
-# Inputs: target-url, scan-type (default: baseline), fail-on (default: HIGH)
+# Inputs: target-url, scan-type (default: baseline). O gate e fail_action: true (falha em alertas do scanner).
 
 on:
   workflow_call:
@@ -14,10 +14,6 @@ on:
         required: false
         default: "baseline"
         type: string
-      fail-on:
-        required: false
-        default: "HIGH"
-        type: string
 
 permissions:
   contents: read
@@ -28,6 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: OWASP ZAP baseline
         if: ${{ inputs.scan-type == 'baseline' }}

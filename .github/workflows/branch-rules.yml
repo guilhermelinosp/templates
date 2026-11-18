@@ -35,10 +35,13 @@ jobs:
           fi
           echo "PR title OK (${#title} chars)."
       - name: Compliance — pins imutáveis do control plane
+        env:
+          REPO_FULL: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
           set -eo pipefail
-          repo="${{ github.repository }}"
-          sha="${{ github.sha }}"
+          repo="$REPO_FULL"
+          sha="$COMMIT_SHA"
           files="$(gh api "repos/${repo}/git/trees/${sha}?recursive=1" --jq '.tree[].path' 2>/dev/null | grep -E '^\.github/workflows/.+\.ya?ml$' || true)"
           [[ -z "${files}" ]] && echo "Sem workflows locais — OK" && exit 0
           for f in ${files}; do

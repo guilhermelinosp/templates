@@ -1,21 +1,25 @@
-# Security Policy
+# Política de segurança
 
-## Supported Versions
+## Versões suportadas
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+Este repositório contém templates de CI/CD. Apenas a branch `main` recebe correções de segurança.
+Versões antigas não recebem correções: use sempre a versão mais recente da branch `main`.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+## Como reportar uma vulnerabilidade
 
-## Reporting a Vulnerability
+Não abra issue pública para vulnerabilidades.
 
-Use this section to tell people how to report a vulnerability.
+Use o recurso de **Private Vulnerability Reporting** do GitHub:
+aba **Security** do repositório → **Report a vulnerability**.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Este canal só existe se o recurso estiver habilitado nas configurações do repositório
+(Settings → Code security). Se não estiver disponível, não publique detalhes da falha.
+
+## O que esperar
+
+- Confirmação de recebimento: tentamos responder em até 7 dias.
+- Avaliação: confirmamos se a falha é reproduzível e qual o impacto.
+- Correção: o trabalho é feito em privado; a divulgação acontece após a correção ou acordo com quem reportou.
+- Se a falha for aceita, ela recebe um advisory; se for recusada, explicamos o motivo.
+
+Não há programa de recompensas.

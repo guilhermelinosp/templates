@@ -35,11 +35,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Get PR diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          git diff origin/${{ github.base_ref }}..HEAD > /tmp/diff.txt
+          git diff "origin/$BASE_REF..HEAD" > /tmp/diff.txt
           echo "Diff lines: $(wc -l < /tmp/diff.txt)"
 
       - name: AI Code Review

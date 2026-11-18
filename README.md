@@ -58,7 +58,7 @@ or release job merges its own PR.
 | `go-build.yml` | Go tidy, vet, lint (golangci-lint), build, test with cache |
 | `go-quality.yml` | All-in-one PR gate: module integrity, vet, extra checks, race tests + coverage artifact, canonical-config lint, build, smoke |
 | `govulncheck.yml` | stdlib vulnerability scan with call-graph reachability |
-| `goreleaser.yml` | Publish cross-platform binaries onto the release created by `release.yml` |
+| `goreleaser-publish.yml` | Publish cross-platform binaries onto the release created by `release.yml` |
 | _CodeQL_ | kept **per-repo** (inline) — reusable variant triggers GitHub validation quirks across callers; see golang-cli/golang-api templates for the canonical copy |
 
 ### Node.js
@@ -123,7 +123,6 @@ or release job merges its own PR.
 | `codeql.yml` _(per-repo)_ | CodeQL analysis — kept inline per repo (reusable variant has unresolved validation quirk; canonical copy lives in golang-cli/golang-api templates) |
 | `semgrep.yml` | Semgrep SAST (configurable rules) |
 | `gosec.yml` | Go security static analysis |
-| `sonarcloud.yml` | SonarCloud analysis with PR decoration |
 
 #### DAST
 
@@ -131,30 +130,21 @@ or release job merges its own PR.
 |---|---|
 | `zap.yml` | OWASP ZAP baseline/full scan |
 | `nuclei.yml` | ProjectDiscovery nuclei vulnerability scanner |
+| `dast.yml` | Orquestra ZAP e Nuclei contra uma `target-url` já no ar: espera o alvo responder (`scripts/wait-for-url.sh`) e depois roda os dois. Sem infraestrutura de preview; a limpeza fica com quem subiu o alvo |
 
 #### Supply Chain
 
 | Workflow | Description |
 |---|---|
 | `grype.yml` | Anchore Grype vulnerability scanner |
-| `snyk.yml` | Snyk vulnerability scanning + monitor |
 | `osv-scanner.yml` | Google OSV dependency scanner |
-| `owasp-dependency-check.yml` | OWASP Dependency Check |
 | `dependency-review.yml` | License + vulnerability review on PRs |
 
 #### IaC Security
 
 | Workflow | Description |
 |---|---|
-| `checkov.yml` | Bridgecrew IaC scanning (Terraform, K8s, Dockerfile) |
-| `tfsec.yml` | Terraform security scanner |
 | `kics.yml` | Checkmarx KICS IaC scanning |
-
-#### Container Security
-
-| Workflow | Description |
-|---|---|
-| `dockle.yml` | Docker CIS benchmark linter |
 
 #### Secrets
 
@@ -168,6 +158,24 @@ or release job merges its own PR.
 | Workflow | Description |
 |---|---|
 | `scorecard.yml` | OpenSSF Scorecard |
+
+#### Bloqueante ou informativo
+
+Nota: o `zap.yml` não aceita mais limiar de severidade. O gate é o `fail_action: true` do scanner, que não é configurável por input.
+
+
+Classificação pelo que o YAML faz (não pelo que o action faz por padrão):
+
+- **Informativo** (não bloqueia o PR): `osv-scanner.yml` (`|| true`), `trivy.yml` (`continue-on-error`).
+- **Com gate explícito** (falha o job): `zap.yml`, `grype.yml`, `kics.yml`, `dependency-review.yml`.
+- **Não classificado**: `codeql`, `semgrep`, `gosec`, `nuclei`, `gitleaks`, `trufflehog`, `scorecard`. O comportamento depende da configuração padrão de cada action; confirme no GitHub antes de contar com eles como barreira.
+
+#### Verificação local
+
+- Exceções de vulnerabilidade: `scripts/tests/vuln-exceptions/run.sh` (testes) e `scripts/check-vuln-exceptions.sh security/vuln-exceptions.yml` (arquivo real). Workflow reutilizável: `vuln-exceptions.yml`.
+- Políticas Kubernetes (Conftest/Rego, `policy/kubernetes/security.rego`): `conftest verify --policy policy/kubernetes` roda os testes unitários; `conftest test <manifesto.yaml> --policy policy/kubernetes --namespace kubernetes` avalia um manifesto. O workflow `conftest.yml` deve receber `policy-dir: ./policy/kubernetes` e `target-dir` apontando só para os manifestos (o padrão `.` varre todo o repositório).
+- Workflows: `actionlint .github/workflows/*.yml` e `zizmor --config .github/zizmor.yml .github/workflows/`. O zizmor desliga só `unpinned-uses`, por preferência de tags em vez de SHA.
+- Política Kyverno de imagens (`policy/kyverno/verify-images.yaml`, tipo `ImageValidatingPolicy`): `kubectl apply --dry-run=server -f policy/kyverno/verify-images.yaml` valida o schema no cluster sem criar nada. A regra de digest pode ser testada com `kyverno apply`. A verificação de assinatura consulta o registry, então depende de rede e de uma imagem realmente assinada pelo workflow `cosign.yml`. Sem isso, o resultado é inconclusivo.
 
 ### FinOps
 

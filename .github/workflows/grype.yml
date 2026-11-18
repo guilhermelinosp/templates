@@ -27,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Scan with Grype
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439

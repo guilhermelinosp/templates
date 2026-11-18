@@ -1,0 +1,39 @@
+name: vuln-exceptions
+
+# Valida o arquivo de exceções de vulnerabilidade do repositório chamador.
+# Falha se houver exceção sem dono/motivo/escopo, com id genérico ou expirada.
+# Inputs: file (default: security/vuln-exceptions.yml)
+
+on:
+  workflow_call:
+    inputs:
+      file:
+        required: false
+        default: security/vuln-exceptions.yml
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do repositorio chamador
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout dos templates (validador)
+        uses: actions/checkout@v4
+        with:
+          repository: guilhermelinosp/templates
+          ref: main
+          path: .templates
+          persist-credentials: false
+
+      - name: Validar exceções
+        env:
+          VULN_EXCEPTIONS_FILE: ${{ inputs.file }}
+        run: |
+          .templates/scripts/check-vuln-exceptions.sh "$VULN_EXCEPTIONS_FILE"

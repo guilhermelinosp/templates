@@ -14,6 +14,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Validate title, branch and workflow ownership
         env:
@@ -28,7 +29,7 @@ jobs:
           printf '%s' "$PR_BRANCH" | grep -qE '^(feat|fix|ci|chore|docs|refactor|build|test|bot|schema)/[^/]+$' \
             || { echo "Unsupported branch name: $PR_BRANCH"; exit 1; }
 
-          files="$(gh api --paginate "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" --jq '.[].filename')"
+          files="$(gh api --paginate "/repos/$REPO_FULL/pulls/$EVENT_PR_NUMBER/files" --jq '.[].filename')"
           if printf '%s\n' "$files" | grep -qE '^\.github/workflows/'; then
             [ "$PR_AUTHOR" = 'hellnet-actions[bot]' ] \
               || { echo 'Workflow changes must be proposed by hellnet-actions[bot]'; exit 1; }
@@ -37,6 +38,8 @@ jobs:
             echo 'bot/* branches are reserved for hellnet-actions[bot]'
             exit 1
           fi
+          REPO_FULL: ${{ github.repository }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
 
       - name: Run shell syntax checks when applicable
         run: |

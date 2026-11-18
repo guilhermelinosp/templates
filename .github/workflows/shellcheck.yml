@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: ShellCheck
         uses: reviewdog/action-shellcheck@0722bbdb0d47f04c1b53b8734d2422ac63a45ec6
@@ -29,7 +31,9 @@ jobs:
           workdir: ${{ inputs.dir }}
 
       - name: Check formatting (shfmt)
+        env:
+          INPUT_DIR: ${{ inputs.dir }}
         run: |
           sudo apt-get update && sudo apt-get install -y shfmt
-          shfmt -d $(find ${{ inputs.dir }} -name '*.sh' -not -path './.git/*' 2>/dev/null) || \
+          shfmt -d $(find "$INPUT_DIR" -name '*.sh' -not -path './.git/*' 2>/dev/null) || \
             echo "Run 'shfmt -w .' to fix formatting"

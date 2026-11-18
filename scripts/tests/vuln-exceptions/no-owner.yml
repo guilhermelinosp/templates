@@ -1,0 +1,5 @@
+exceptions:
+  - id: CVE-2024-12345
+    scope: golang.org/x/net
+    reason: Falso positivo confirmado; caminho vulneravel nao alcancado pelo template.
+    expires: 2027-06-30

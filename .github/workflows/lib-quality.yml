@@ -72,6 +72,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
@@ -97,7 +98,9 @@ jobs:
 
       - name: Extra repository-specific checks
         if: inputs.extra-commands != ''
-        run: ${{ inputs.extra-commands }}
+        env:
+          EXTRA_COMMANDS: ${{ inputs.extra-commands }}
+        run: eval "$EXTRA_COMMANDS"
 
       - name: Test with coverage (race)
         run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
@@ -123,7 +126,9 @@ jobs:
           args: --config .golangci.ci.yml
 
       - name: Build
-        run: ${{ inputs.build-command }}
+        env:
+          BUILD_COMMAND: ${{ inputs.build-command }}
+        run: eval "$BUILD_COMMAND"
 
       - name: Govulncheck
         env:
@@ -142,6 +147,8 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Dependency review
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294

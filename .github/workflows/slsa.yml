@@ -25,6 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
@@ -32,17 +34,20 @@ jobs:
       - name: Generate SLSA provenance
         env:
           COSIGN_EXPERIMENTAL: "1"
+          INPUT_PREDICATE_TYPE: ${{ inputs.predicate-type }}
+          INPUT_IMAGE: ${{ inputs.image }}
         run: |
           cosign attest \
             --yes \
             --type slsaprovenance \
-            --predicate-type ${{ inputs.predicate-type }} \
-            ${{ inputs.image }}
+            --predicate-type "$INPUT_PREDICATE_TYPE" \
+            "$INPUT_IMAGE"
 
       - name: Verify provenance
         env:
           COSIGN_EXPERIMENTAL: "1"
+          INPUT_IMAGE: ${{ inputs.image }}
         run: |
           cosign verify-attestation \
             --type slsaprovenance \
-            ${{ inputs.image }}
+            "$INPUT_IMAGE"

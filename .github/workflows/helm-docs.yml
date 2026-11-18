@@ -32,10 +32,13 @@ jobs:
           sudo mv helm-docs /usr/local/bin/
 
       - name: Generate README
+        env:
+          INPUT_CHART_DIR: ${{ inputs.chart-dir }}
+          INPUT_TEMPLATE_VALUES: ${{ inputs.template-values }}
         run: |
           helm-docs \
-            --chart-search-root ${{ inputs.chart-dir }} \
-            --template-files ${{ inputs.template-values }}
+            --chart-search-root "$INPUT_CHART_DIR" \
+            --template-files "$INPUT_TEMPLATE_VALUES"
 
       - name: Check for changes
         id: diff

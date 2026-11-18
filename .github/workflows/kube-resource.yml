@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Install yq
         run: |
@@ -27,6 +29,8 @@ jobs:
           sudo mv yq_linux_amd64 /usr/local/bin/yq
 
       - name: Check K8s resource requests/limits
+        env:
+          INPUT_MANIFESTS_DIR: ${{ inputs.manifests-dir }}
         run: |
           ERRORS=0
           ERROR_FILE=$(mktemp)
@@ -58,7 +62,7 @@ jobs:
                 fi
                 ;;
             esac
-          done < <(find "${{ inputs.manifests-dir }}" -type f \( -name '*.yaml' -o -name '*.yml' \) -print0 2>/dev/null)
+          done < <(find "$INPUT_MANIFESTS_DIR" -type f \( -name '*.yaml' -o -name '*.yml' \) -print0 2>/dev/null)
           set -e
 
           echo "$ERRORS" > "$ERROR_FILE"

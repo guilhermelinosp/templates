@@ -50,6 +50,8 @@ jobs:
       plan-exitcode: ${{ steps.plan.outputs.exitcode }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Configure AWS credentials (OIDC)
         if: ${{ inputs.aws-role-to-assume != '' }}
@@ -66,16 +68,28 @@ jobs:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
       - name: Terraform init
+        env:
+          INPUT_DIR: ${{ inputs.dir }}
         run: |
-          terraform -chdir=${{ inputs.dir }} init
+          terraform -chdir="$INPUT_DIR" init
 
       - name: Terraform plan
         id: plan
+        shell: bash
+        env:
+          TF_DIR: ${{ inputs.dir }}
         run: |
-          terraform -chdir=${{ inputs.dir }} plan \
-            -out=tfplan \
-            -no-color
-        continue-on-error: true
+          # -detailed-exitcode: 0 = sem mudancas, 1 = erro, 2 = mudancas.
+          set +e
+          terraform -chdir="$TF_DIR" plan -detailed-exitcode -out=tfplan -no-color
+          code=$?
+          set -e
+          echo "exitcode=${code}" >> "$GITHUB_OUTPUT"
+          if [ "$code" -eq 1 ]; then
+            echo "::error::terraform plan falhou"
+            exit 1
+          fi
+          exit 0
 
       - name: Upload plan
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -87,11 +101,13 @@ jobs:
     needs: [plan]
     if: |
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-      && needs.plan.outputs.plan-exitcode == '0'
+      && needs.plan.outputs.plan-exitcode == '2'
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Configure AWS credentials (OIDC)
         if: ${{ inputs.aws-role-to-assume != '' }}
@@ -114,15 +130,21 @@ jobs:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
       - name: Terraform init
+        env:
+          INPUT_DIR: ${{ inputs.dir }}
         run: |
-          terraform -chdir=${{ inputs.dir }} init
+          terraform -chdir="$INPUT_DIR" init
 
       - name: Terraform apply
         if: ${{ !inputs.destroy }}
+        env:
+          INPUT_DIR: ${{ inputs.dir }}
         run: |
-          terraform -chdir=${{ inputs.dir }} apply tfplan
+          terraform -chdir="$INPUT_DIR" apply tfplan
 
       - name: Terraform destroy
         if: ${{ inputs.destroy }}
+        env:
+          INPUT_DIR: ${{ inputs.dir }}
         run: |
-          terraform -chdir=${{ inputs.dir }} destroy -auto-approve
+          terraform -chdir="$INPUT_DIR" destroy -auto-approve

@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Install Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310
@@ -30,12 +32,16 @@ jobs:
           version: latest
 
       - name: Helm lint
+        env:
+          INPUT_CHART_DIR: ${{ inputs.chart-dir }}
         run: |
-          helm lint ${{ inputs.chart-dir }} --strict
+          helm lint "$INPUT_CHART_DIR" --strict
 
       - name: Helm template
+        env:
+          INPUT_CHART_DIR: ${{ inputs.chart-dir }}
         run: |
-          helm template test-release ${{ inputs.chart-dir }} > /dev/null
+          helm template test-release "$INPUT_CHART_DIR" > /dev/null
 
       - name: Install kubeconform
         run: |
@@ -44,8 +50,11 @@ jobs:
           sudo mv kubeconform /usr/local/bin/
 
       - name: Validate against K8s schema
+        env:
+          INPUT_CHART_DIR: ${{ inputs.chart-dir }}
+          INPUT_KUBE_VERSION: ${{ inputs.kube-version }}
         run: |
-          helm template test-release ${{ inputs.chart-dir }} \
+          helm template test-release "$INPUT_CHART_DIR" \
             | kubeconform \
-              -kubernetes-version ${{ inputs.kube-version }} \
+              -kubernetes-version "$INPUT_KUBE_VERSION" \
               -strict
