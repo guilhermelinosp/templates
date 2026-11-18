@@ -70,6 +70,8 @@ jobs:
       HAS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET != '' }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Validar entradas
         run: |
@@ -128,6 +130,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Validar, testar e aplicar a ACL
         uses: tailscale/gitops-acl-action@v1
