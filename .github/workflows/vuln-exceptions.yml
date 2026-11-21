@@ -24,12 +24,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout do repositorio chamador
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Checkout dos templates (validador)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: guilhermelinosp/templates
           ref: ${{ inputs.templates-ref }}
