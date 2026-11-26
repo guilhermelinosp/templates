@@ -5,6 +5,15 @@
         "tag:github": ["autogroup:admin"],
     },
 
+    // Rotas anunciadas pelo subnet router do cluster (pod tailscale, hellnet/tailscale/tailscale.yaml):
+    // o no do cluster e o VIP do gateway Cilium (grafana, argocd, hubble). Aprovadas sem clique no painel.
+    "autoApprovers": {
+        "routes": {
+            "192.168.1.2/32":   ["autogroup:admin"],
+            "192.168.1.254/32": ["autogroup:admin"],
+        },
+    },
+
     "acls": [
         // Os seus dispositivos (com login de usuario) acessam tudo.
         {
