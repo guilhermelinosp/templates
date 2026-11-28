@@ -16,6 +16,6 @@ jobs:
           persist-credentials: false
 
       - name: Secret scan with trufflehog
-        uses: trufflesecurity/trufflehog@v3.99.8
+        uses: trufflesecurity/trufflehog@v3.100.1
         with:
           extra_args: --only-verified --no-update
